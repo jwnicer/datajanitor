@@ -258,7 +258,7 @@ async function parseXLSX(
 ) {
   const { bucket, name } = opts;
   const [buf] = await storage.bucket(bucket).file(name).download();
-  const wb = XLSX.read(buf, { type: 'buffer' });
+  const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, dateNF: 'yyyy-mm-dd' });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows: any[] = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
   let idx = 0;
