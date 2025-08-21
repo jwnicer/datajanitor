@@ -5,16 +5,20 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { apiPost } from '@/lib/api';
+import { toast } from 'sonner';
 
 // types
 export type InferredType = 'string'|'integer'|'float'|'boolean'|'date'|'email'|'phone'|'url'|'currency'|'enum'|'unknown';
-export interface ColumnSpec { source: string; type: InferredType; confidence: number; samples: string[]; target?: string; suggestTargets: string[]; enumValues?: string[] }
+export interface ColumnSpec { source: string; type: InferredType; confidence: number; samples: string[]; target?: string; suggestTargets: string[]; enumValues?: string[], reason?: string; }
 export interface SchemaMapping { columns: ColumnSpec[] }
 
 const CANONICAL_FIELDS = ['company_name','company_website','email','phone','country','state','city','zip','address','address_line1','address_line2','insured_name','policy_number','policy_type','effective_date','expiration_date','premium','naic','vin','type','website'];
 
 export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; open: boolean; onClose: ()=>void; onConfirm: (schema: SchemaMapping)=>void }){
   const [columns, setColumns] = React.useState<ColumnSpec[]>([]);
+  const [header, setHeader] = React.useState<string[]>([]);
+  const [sampleRows, setSampleRows] = React.useState<any[][]>([]);
 
   React.useEffect(() => { if (open && file) parseFile(file); }, [open, file]);
 
@@ -23,16 +27,44 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
     const wb = XLSX.read(ab, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
-    const header = (rows[0] || []).map((h: any) => String(h || '').trim());
+    const hdr = (rows[0] || []).map((h: any) => String(h || '').trim());
+    setHeader(hdr);
     const body = rows.slice(1).filter((r: any[]) => r && r.length > 0);
     const sample = body.slice(0, 500);
-    const cols: ColumnSpec[] = header.map((h: string, i: number) => {
+    setSampleRows(sample);
+    const cols: ColumnSpec[] = hdr.map((h: string, i: number) => {
       const values = sample.map(r => r?.[i]).filter((v: any) => v!==undefined && v!==null).map(String);
       const info = inferType(values);
       const sugg = suggestTargets(h, info.type);
       return { source: h || `col_${i+1}`, type: info.type, confidence: info.confidence, samples: values.slice(0,5), suggestTargets: sugg, target: sugg[0] };
     });
     setColumns(cols);
+  }
+  
+  async function proposeWithGemini() {
+    try {
+      const { mapping } = await apiPost('/api/schema/propose', { header, sampleRows });
+      if (!mapping || !Array.isArray(mapping)) throw new Error('Invalid response from server');
+      
+      const newColumns = columns.map(col => {
+        const proposal = mapping.find((m:any) => m.source === col.source);
+        if (proposal) {
+          return {
+            ...col,
+            target: proposal.target,
+            type: proposal.inferredType,
+            confidence: proposal.confidence,
+            reason: proposal.reason,
+          };
+        }
+        return col;
+      });
+      setColumns(newColumns);
+      toast.success("Gemini proposals applied!");
+
+    } catch (e: any) {
+      toast.error('Gemini proposal failed', { description: e.message });
+    }
   }
 
   function inferType(values: string[]) {
@@ -67,6 +99,9 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl">
         <DialogHeader><DialogTitle>Map Columns & Confirm Types</DialogTitle></DialogHeader>
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={proposeWithGemini}>🤖 Use Gemini to propose</Button>
+        </div>
         <div className="overflow-auto max-h-[60vh] border rounded-xl">
           <table className="w-full text-sm">
             <thead className="bg-muted">
@@ -75,6 +110,7 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
                 <th className="p-2 text-left">Type</th>
                 <th className="p-2 text-left">Samples</th>
                 <th className="p-2 text-left">Target</th>
+                <th className="p-2 text-left">Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -91,6 +127,7 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
                       {[...new Set([...(c.suggestTargets||[]), ...CANONICAL_FIELDS])].map(f=> (<option key={f} value={f}>{f}</option>))}
                     </select>
                   </td>
+                  <td className="p-2 text-xs italic text-muted-foreground">{c.reason}</td>
                 </tr>
               ))}
             </tbody>
