@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { SchemaMapper, type SchemaMapping } from './SchemaMapper';
 import { apiPost } from '@/lib/api';
+import type { User } from 'firebase/auth';
 
-export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void, onComplete?:(payload:any)=>void }){
+export function UploadPanel({ user, jobId, ruleSetId, onStatus, onComplete }:{ user: User | null; jobId:string; ruleSetId:string; onStatus:(s:string)=>void, onComplete?:(payload:any)=>void }){
   const [file, setFile] = React.useState<File|null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -25,12 +26,14 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
   const begin = () => { if (!file) return toast.error('Choose a file'); setShowMapper(true); };
 
   async function doUpload() {
-    if (!file) return; 
+    if (!file || !user) return toast.error('Please sign in to upload.'); 
     try {
       setUploading(true); setProgress(15);
+      const token = await user.getIdToken();
       const headers: Record<string,string> = {
         'x-file-name': file.name,
         'Content-Type': 'application/octet-stream',
+        'Authorization': `Bearer ${token}`,
       };
       if (mappingRef.current) headers['x-schema-mapping'] = btoa(unescape(encodeURIComponent(JSON.stringify(mappingRef.current))));
 
@@ -94,9 +97,10 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
           {file && <div className="mt-2 text-xs text-muted-foreground">{file.name} • {(file.size/1024/1024).toFixed(2)} MB</div>}
           {uploading && <Progress className="mt-3" value={progress} />}
           <div className="mt-4 flex gap-2 justify-center">
-            <Button onClick={begin} disabled={!file || uploading}>Upload</Button>
+            <Button onClick={begin} disabled={!file || uploading || !user}>Upload</Button>
           </div>
         </div>
+        {!user && <div className="text-xs text-center text-destructive">Please sign in to upload files.</div>}
       </CardContent>
        {file && <SchemaMapper file={file} open={showMapper} onClose={()=>setShowMapper(false)} onConfirm={onConfirm} ruleSetId={ruleSetId} />}
     </Card>

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileUp, Settings, Sparkles, Bug, Upload, TableProperties, Database, LogOut, Play, Wand2, Globe2, CheckCircle2, XCircle, Moon, Sun, LogIn } from 'lucide-react';
@@ -19,6 +19,7 @@ import { IssuesTable } from '@/components/IssuesTable';
 import { RuleEditorPanel } from '@/components/RuleEditorPanel';
 import { ExportPanel } from '@/components/ExportPanel';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { apiPost } from '@/lib/api';
 
 // Firebase config via Vite env (as in previous batches)
 const firebaseConfig = {
@@ -36,30 +37,33 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export default function App() {
+  const [user, setUser] = React.useState<User | null>(null);
   const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
   const [ruleSetId, setRuleSetId] = React.useState('default');
   const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export' | 'mapping'>('upload');
   const [statusText, setStatusText] = React.useState('');
   const [mapping, setMapping] = React.useState<any>(null);
 
+  React.useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
+
   const runLLMBatch = async () => {
-    const res = await fetch('/api/llm/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
-    const j = await res.json();
-    toast.success('LLM batch complete', { description: JSON.stringify(j) });
+    const res = await apiPost('/api/llm/batch', { jobId });
+    toast.success('LLM batch complete', { description: JSON.stringify(res) });
   };
 
   const runAdhoc = async () => {
     const promptValue = window.prompt('Ad-hoc prompt (e.g., "Find anomalies in email/phone")');
     if (!promptValue) return;
-    const res = await fetch('/api/llm/adhoc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, prompt: promptValue, limit: 20 }) });
-    const j = await res.json();
+    const res = await apiPost('/api/llm/adhoc', { jobId, prompt: promptValue, limit: 20 });
     toast.success('Ad-hoc review complete', { description: JSON.stringify(j) });
   };
 
   const webEnrich = async () => {
-    const res = await fetch('/api/web/company/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, limit: 50 }) });
-    const j = await res.json();
-    toast.success('Web enrichment queued', { description: JSON.stringify(j) });
+    const res = await apiPost('/api/web/company/bulk', { jobId, limit: 50 });
+    toast.success('Web enrichment queued', { description: JSON.stringify(res) });
   };
   
   const onUploadComplete = (payload: any) => {
@@ -77,7 +81,8 @@ export default function App() {
         onRunLLM={runLLMBatch}
         onAdhoc={runAdhoc}
         onWeb={webEnrich}
-        onSignOut={() => {}}
+        user={user}
+        onSignOut={() => auth.signOut()}
       />
 
       <div className="mx-auto max-w-7xl grid grid-cols-12 gap-6 p-4 md:p-6">
@@ -88,7 +93,7 @@ export default function App() {
             {tab === 'upload' && (
               <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={1} />
-                <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
+                <UploadPanel user={user} jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
                 <HintCard title="Tip" text="After upload, check the Issues tab to review and apply fixes. Then run LLM Batch for tricky items." icon={<Sparkles className="h-5 w-5" />} />
               </motion.div>
             )}
@@ -133,8 +138,8 @@ export default function App() {
   );
 }
 
-function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
-  { jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
+function Topbar({ user, jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
+  { user: User | null; jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
   return (
     <div className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50">
       <div className="mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center gap-3">
@@ -151,6 +156,7 @@ function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, o
           <Button variant="outline" onClick={onAdhoc}><Wand2 className="h-4 w-4 mr-2" /> Ad‑hoc</Button>
           <Button onClick={onRunLLM}><Play className="h-4 w-4 mr-2" /> LLM Batch</Button>
           <ThemeToggle />
+           {user && <Button variant="outline" size="icon" onClick={onSignOut}><LogOut className="h-4 w-4" /></Button>}
         </div>
       </div>
     </div>
