@@ -5,7 +5,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
-  title: 'DataMaestro',
+  title: 'Data Janitor',
   description: 'Data Normalization & Validation App',
 };
 

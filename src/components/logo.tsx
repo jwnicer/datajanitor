@@ -10,7 +10,7 @@ export function Logo(props: React.SVGProps<SVGSVGElement>) {
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <title>DataMaestro Logo</title>
+      <title>Data Janitor Logo</title>
       <path
         d="M6 2L20 2C24.4183 2 28 5.58172 28 10V22C28 26.4183 24.4183 30 20 30H6V2Z"
         fill="currentColor"

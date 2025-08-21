@@ -35,7 +35,7 @@ export function AppSidebar() {
           <Logo className="size-8 shrink-0" />
           <div className="flex flex-col">
             <h2 className="font-headline text-lg font-semibold text-sidebar-foreground">
-              DataMaestro
+              Data Janitor
             </h2>
           </div>
         </div>
