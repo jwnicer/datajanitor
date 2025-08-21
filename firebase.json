@@ -9,7 +9,10 @@
     ],
     "frameworksBackend": {
       "region": "us-central1"
-    }
+    },
+    "rewrites": [
+      { "source": "/schema/propose", "function": "schemaPropose" }
+    ]
   },
   "emulators": {
     "hub": { "port": 4400 },

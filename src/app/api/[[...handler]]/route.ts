@@ -7,6 +7,7 @@ import { exportBQ } from '@/lib/bq-export';
 import { upload } from '@/lib/upload';
 import { dedupeScan } from '@/lib/dedupe';
 import { cacheGet, cacheSet } from '@/lib/web-company-cache';
+import { schemaPropose } from '@/lib/schema-propose';
 
 // This is a catch-all route that proxies requests to the appropriate Cloud Function.
 // This is used for local development to simulate the Firebase Hosting rewrites.
@@ -30,6 +31,7 @@ const handlerMap: Record<string, Function> = {
     'dedupe/scan': dedupeScan,
     'cache/get': cacheGet,
     'cache/set': cacheSet,
+    'schema/propose': schemaPropose,
 };
 
 const handle = async (req: Request, { params }: { params: { handler: string[] } }) => {
@@ -58,4 +60,5 @@ const handle = async (req: Request, { params }: { params: { handler: string[] } 
 
 
 export { handle as GET, handle as POST };
+
 
