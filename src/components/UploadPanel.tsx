@@ -15,6 +15,8 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
   const [progress, setProgress] = React.useState(0);
   const [showMapper, setShowMapper] = React.useState(false);
   const mappingRef = React.useRef<SchemaMapping|null>(null);
+  const dropzoneRef = React.useRef<HTMLDivElement>(null);
+
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -54,14 +56,12 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
       onStatus(JSON.stringify(payload));
       toast.success('Upload complete. Starting processing...');
 
-      // Auto-start processing
       try {
         await apiPost('/api/process/start', { jobId, useLLM: true });
         toast.success('Processing started');
       } catch (e: any) {
         toast.error('Failed to start processing', { description: e.message });
       }
-
 
       if (onComplete) onComplete(payload);
     } catch (e: any) {
@@ -84,6 +84,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
       <CardHeader><CardTitle>Upload & Start</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div
+          ref={dropzoneRef}
           onDrop={onDrop}
           onDragOver={(e)=>e.preventDefault()}
           className="rounded-2xl border border-dashed p-8 text-center bg-muted/30"
