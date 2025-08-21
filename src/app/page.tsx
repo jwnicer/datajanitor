@@ -6,7 +6,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileUp, Settings, Sparkles, Bug, Upload, TableProperties, Database, LogOut, Play, Wand2, Globe2, CheckCircle2, XCircle, Moon, Sun } from 'lucide-react';
+import { FileUp, Settings, Sparkles, Bug, Upload, TableProperties, Database, LogOut, Play, Wand2, Globe2, CheckCircle2, XCircle, Moon, Sun, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -141,7 +141,7 @@ function AuthScreen({ onSignin }: { onSignin: () => void }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">Sign in with your email to continue.</p>
-          <Button className="w-full" onClick={onSignin}><LogOut className="h-4 w-4 mr-2 rotate-180" /> Sign in</Button>
+          <Button className="w-full" onClick={onSignin}><LogIn className="h-4 w-4 mr-2" /> Sign in</Button>
         </CardContent>
       </Card>
       <ThemeToggle className="fixed bottom-4 right-4" />
@@ -235,3 +235,5 @@ function HintCard({ title, text, icon }: { title: string; text: string; icon: Re
     </Card>
   );
 }
+
+    
