@@ -108,7 +108,7 @@ export const llmAdhoc = onRequest({ cors: true }, async (req, res) => {
     }
 
     const snap = await rowsQuery.get();
-    const rows = snap.docs.map(d => ({ rowId: d.id, ...(d.data()?.normalized || s.data()?.data || {}) }));
+    const rows = snap.docs.map(d => ({ rowId: d.id, ...(d.data()?.normalized || d.data()?.data || {}) }));
     const subset = columns && columns.length > 0 ? rows.map(r => { const s: any = { rowId: r.rowId }; for (const c of columns) s[c] = (r as any)[c]; return s; }) : rows;
     const redacted = redactRows(subset, ruleSet.pii?.fields);
     const result = await adHocLlmPrompt({ prompt, sample: JSON.stringify(redacted), rules: JSON.stringify(ruleSet.rules) });
@@ -141,7 +141,10 @@ export const llmBatch = onRequest({ cors: true }, async (req, res) => {
     if (rowIds.length === 0) return res.json({ message: 'No rows with open deterministic issues.' });
 
     const rowSnaps = await Promise.all(rowIds.map(id => db.collection('jobs').doc(jobId).collection('rows').doc(id).get()));
-    const rows = rowSnaps.filter(s => s.exists).map(s => ({ rowId: s.id, ...(s.data()?.normalized || s.data()?.data || {}) }));
+    const rows = rowSnaps.filter(s => s.exists).map(s => {
+        const data = s.data();
+        return { rowId: s.id, ...(data?.normalized || data?.data || {}) };
+    });
 
     const batches = chunk(rows, 20);
     const allIssues: any[] = [];
