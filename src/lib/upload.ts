@@ -12,11 +12,19 @@ const db2 = getDb2();
 export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (req, res) => {
   try {
     if (req.method !== 'POST') return res.status(405).send('Use POST');
+    
+    // Auth is now optional. If token provided, we associate with user.
+    let uid = 'anonymous';
     const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (!token) return res.status(401).json({ error: 'Missing bearer token' });
-    const decoded = await getAdminAuth().verifyIdToken(token);
-    const uid = decoded.uid;
+    if (authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const decoded = await getAdminAuth().verifyIdToken(token);
+        uid = decoded.uid;
+      } catch (e) {
+        // Ignore invalid tokens, treat as anonymous
+      }
+    }
 
     const jobId = String(req.query.jobId || 'job-' + Math.random().toString(36).slice(2));
     const ruleSetId = String(req.query.ruleSetId || 'default');

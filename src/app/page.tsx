@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileUp, Settings, Sparkles, Bug, Upload, TableProperties, Database, LogOut, Play, Wand2, Globe2, CheckCircle2, XCircle, Moon, Sun, LogIn } from 'lucide-react';
@@ -37,30 +37,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export default function App() {
-  const [user, setUser] = React.useState<any>(null);
   const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
   const [ruleSetId, setRuleSetId] = React.useState('default');
   const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export'>('upload');
   const [statusText, setStatusText] = React.useState('');
-
-  React.useEffect(() => onAuthStateChanged(auth, setUser), []);
-
-  const signin = async () => {
-    const email = prompt('Email');
-    const pass = "era101";
-    if (!email) return;
-    try {
-      await signInWithEmailAndPassword(auth, email, pass);
-      toast.success('Signed in');
-    } catch (e: any) {
-      toast.error('Sign in failed', { description: e.message });
-    }
-  };
-
-  const signout = async () => {
-    await signOut(auth);
-    toast('Signed out');
-  };
 
   const runLLMBatch = async () => {
     const res = await fetch('/api/llm/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
@@ -82,8 +62,6 @@ export default function App() {
     toast.success('Web enrichment queued', { description: JSON.stringify(j) });
   };
 
-  if (!user) return <AuthScreen onSignin={signin} />;
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Toaster position="top-right" richColors />
@@ -95,7 +73,7 @@ export default function App() {
         onRunLLM={runLLMBatch}
         onAdhoc={runAdhoc}
         onWeb={webEnrich}
-        onSignOut={signout}
+        onSignOut={() => {}}
       />
 
       <div className="mx-auto max-w-7xl grid grid-cols-12 gap-6 p-4 md:p-6">
@@ -106,7 +84,7 @@ export default function App() {
             {tab === 'upload' && (
               <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={1} />
-                <UploadPanel user={user} jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} />
+                <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} />
                 <HintCard title="Tip" text="After upload, check the Issues tab to review and apply fixes. Then run LLM Batch for tricky items." icon={<Sparkles className="h-5 w-5" />} />
               </motion.div>
             )}
@@ -136,24 +114,6 @@ export default function App() {
   );
 }
 
-function AuthScreen({ onSignin }: { onSignin: () => void }) {
-  return (
-    <div className="min-h-screen grid place-items-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bug className="h-5 w-5" /> Data Janitor</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">Sign in with your email to continue.</p>
-          <Button className="w-full" onClick={onSignin}><LogIn className="h-4 w-4 mr-2" /> Sign in</Button>
-        </CardContent>
-      </Card>
-      <ThemeToggle className="fixed bottom-4 right-4" />
-      <Toaster />
-    </div>
-  );
-}
-
 function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
   { jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
   return (
@@ -172,7 +132,6 @@ function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, o
           <Button variant="outline" onClick={onAdhoc}><Wand2 className="h-4 w-4 mr-2" /> Ad‑hoc</Button>
           <Button onClick={onRunLLM}><Play className="h-4 w-4 mr-2" /> LLM Batch</Button>
           <ThemeToggle />
-          <Button variant="ghost" onClick={onSignOut}><LogOut className="h-4 w-4" /></Button>
         </div>
       </div>
     </div>
@@ -239,5 +198,3 @@ function HintCard({ title, text, icon }: { title: string; text: string; icon: Re
     </Card>
   );
 }
-
-    

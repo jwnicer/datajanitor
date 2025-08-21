@@ -1,3 +1,4 @@
+
 'use client';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-export function UploadPanel({ user, jobId, ruleSetId, onStatus }:{ user:any; jobId:string; ruleSetId:string; onStatus:(s:string)=>void }){
+export function UploadPanel({ jobId, ruleSetId, onStatus }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void }){
   const [file, setFile] = React.useState<File|null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -21,9 +22,8 @@ export function UploadPanel({ user, jobId, ruleSetId, onStatus }:{ user:any; job
     if (!file) return toast.error('Choose a file');
     try {
       setUploading(true); setProgress(10);
-      const token = await user.getIdToken();
       const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'x-file-name': file.name, 'Content-Type': file.type }, body: file,
+        method: 'POST', headers: { 'x-file-name': file.name, 'Content-Type': file.type }, body: file,
       });
       setProgress(70);
       const j = await res.json();
