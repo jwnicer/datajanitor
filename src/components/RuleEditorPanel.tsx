@@ -1,3 +1,4 @@
+
 'use client';
 import React from 'react';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -6,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { apiGet, apiPost } from '@/lib/api';
+import defaultRules from '@/rulesets/default.json';
+
 
 export function RuleEditorPanel({ ruleSetId }: { ruleSetId: string }) {
   const [json, setJson] = React.useState<string>('');
@@ -19,8 +22,12 @@ export function RuleEditorPanel({ ruleSetId }: { ruleSetId: string }) {
         const v = await apiGet(`/api/rules?id=${ruleSetId}`);
         setJson(JSON.stringify(v, null, 2));
     } catch (e) {
-        const v = { name: ruleSetId, version: 1, rules: [], dictionaries: {}, pii: { fields: [] } };
-        setJson(JSON.stringify(v, null, 2));
+        let template = defaultRules;
+        // If not the default, create a leaner template.
+        if (ruleSetId !== 'default') {
+            template = { name: ruleSetId, version: 1, rules: [], dictionaries: {}, pii: { fields: [] } } as any;
+        }
+        setJson(JSON.stringify(template, null, 2));
         toast.info(`Rule set '${ruleSetId}' not found. Created a new one.`)
     } finally {
         setLoading(false);

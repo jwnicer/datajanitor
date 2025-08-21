@@ -41,6 +41,9 @@ import { parse as csvParse } from 'csv-parse';
 import * as XLSX from 'xlsx';
 import { Readable } from 'node:stream';
 import { pipeline as nodePipeline } from 'node:stream/promises';
+import * as fs from 'fs';
+import * as path from 'path';
+
 
 // NOTE: adjust the import path based on your repo layout
 import { RuleEngine, RuleSet, simpleCountryMapper, simpleStateMapper } from './rules-engine';
@@ -315,7 +318,17 @@ async function loadRuleSetForJob(jobId: string): Promise<RuleSet> {
     const rs = await db.collection('ruleSets').doc(ruleSetId).get();
     if (rs.exists) return rs.data() as RuleSet;
   }
-  // Default minimal rules — customize as needed
+  
+  // Load default from local JSON
+  try {
+    const defaultJsonPath = path.resolve(__dirname, '..', 'rulesets', 'default.json');
+    const defaultJson = fs.readFileSync(defaultJsonPath, 'utf-8');
+    return JSON.parse(defaultJson);
+  } catch (e) {
+    logger.error("Failed to load default.json, falling back to minimal.", e);
+  }
+
+  // Fallback minimal rules
   const defaultRuleSet: RuleSet = {
     name: 'Default',
     version: 1,

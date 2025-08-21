@@ -1,0 +1,71 @@
+{
+  "name": "default",
+  "version": 1,
+  "rules": [
+    { "ruleId": "required_company_name", "type": "required", "appliesTo": ["company_name"], "enabled": true, "severity": "error" },
+    { "ruleId": "required_contact_or_email", "type": "required", "appliesTo": ["contact_name", "email"], "enabled": true, "severity": "warning" },
+    { "ruleId": "email_valid", "type": "email", "appliesTo": ["email"], "strategy": "auto_fix", "enabled": true },
+    { "ruleId": "phone_valid", "type": "phone", "appliesTo": ["phone"], "strategy": "auto_fix", "enabled": true },
+    { "ruleId": "url_valid",   "type": "url",   "appliesTo": ["company_website", "website", "domain"], "strategy": "auto_fix", "enabled": true },
+    { "ruleId": "date_effective_iso", "type": "date", "appliesTo": ["effective_date"], "strategy": "auto_fix", "enabled": true },
+    { "ruleId": "date_expiration_iso", "type": "date", "appliesTo": ["expiration_date"], "strategy": "auto_fix", "enabled": true },
+    { "ruleId": "company_chars", "type": "regex", "appliesTo": ["company_name"], "pattern": "^[A-Za-z0-9&'()\\-.,/ ]+$", "enabled": true, "severity": "info" },
+    { "ruleId": "name_chars", "type": "regex", "appliesTo": ["contact_name"], "pattern": "^[A-Za-z ,.'\\-]+$", "enabled": true, "severity": "info" },
+    { "ruleId": "address_multi_space", "type": "regex", "appliesTo": ["company_name", "contact_name", "address_line1", "address_line2"], "pattern": "^(?!.*\\s{2,}).*$", "enabled": true, "severity": "info" },
+    { "ruleId": "zip_us_format", "type": "regex", "appliesTo": ["zip"], "pattern": "^\\d{5}(-\\d{4})?$", "enabled": true, "severity": "warning" },
+    {
+      "ruleId": "country_enum",
+      "type": "enum",
+      "appliesTo": ["country"],
+      "strategy": "auto_fix",
+      "enabled": true,
+      "enum": ["US", "Canada", "UK"],
+      "synonyms": {
+        "usa": "US", "u.s.": "US", "united states": "US", "united states of america": "US", "u.s.a.": "US",
+        "ca": "Canada", "can": "Canada",
+        "gb": "UK", "u.k.": "UK", "united kingdom": "UK"
+      }
+    },
+    {
+      "ruleId": "state_us_enum",
+      "type": "enum",
+      "appliesTo": ["state"],
+      "strategy": "auto_fix",
+      "enabled": true,
+      "enum": ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"],
+      "synonyms": {
+        "alabama": "AL", "al": "AL", "alaska": "AK", "ak": "AK", "arizona": "AZ", "az": "AZ", "arkansas": "AR", "ar": "AR",
+        "california": "CA", "ca": "CA", "colorado": "CO", "co": "CO", "connecticut": "CT", "ct": "CT", "delaware": "DE", "de": "DE",
+        "florida": "FL", "fl": "FL", "georgia": "GA", "ga": "GA", "hawaii": "HI", "hi": "HI", "idaho": "ID", "id": "ID",
+        "illinois": "IL", "il": "IL", "indiana": "IN", "in": "IN", "iowa": "IA", "ia": "IA", "kansas": "KS", "ks": "KS",
+        "kentucky": "KY", "ky": "KY", "louisiana": "LA", "la": "LA", "maine": "ME", "me": "ME", "maryland": "MD", "md": "MD",
+        "massachusetts": "MA", "ma": "MA", "michigan": "MI", "mi": "MI", "minnesota": "MN", "mn": "MN", "mississippi": "MS", "ms": "MS",
+        "missouri": "MO", "mo": "MO", "montana": "MT", "mt": "MT", "nebraska": "NE", "ne": "NE", "nevada": "NV", "nv": "NV",
+        "new hampshire": "NH", "nh": "NH", "new jersey": "NJ", "nj": "NJ", "new mexico": "NM", "nm": "NM", "new york": "NY", "ny": "NY",
+        "north carolina": "NC", "nc": "NC", "north dakota": "ND", "nd": "ND", "ohio": "OH", "oh": "OH", "oklahoma": "OK", "ok": "OK",
+        "oregon": "OR", "or": "OR", "pennsylvania": "PA", "pa": "PA", "rhode island": "RI", "ri": "RI", "south carolina": "SC", "sc": "SC",
+        "south dakota": "SD", "sd": "SD", "tennessee": "TN", "tn": "TN", "texas": "TX", "tx": "TX", "utah": "UT", "ut": "UT",
+        "vermont": "VT", "vt": "VT", "virginia": "VA", "va": "VA", "washington": "WA", "wa": "WA", "west virginia": "WV", "wv": "WV",
+        "wisconsin": "WI", "wi": "WI", "wyoming": "WY", "wy": "WY"
+      }
+    },
+    {
+      "ruleId": "bool_yes_no_engagement",
+      "type": "enum",
+      "appliesTo": ["engagement_1_1", "qna_substantive", "requested_follow_up"],
+      "strategy": "auto_fix", "enabled": true,
+      "enum": ["Yes","No"],
+      "synonyms": { "y": "Yes", "yes": "Yes", "true": "Yes", "1": "Yes", "n": "No", "no": "No", "false": "No", "0": "No" }
+    },
+    { "ruleId": "gtm_traction", "type": "enum", "appliesTo": ["gtm_traction"], "strategy": "auto_fix", "enabled": true, "enum": ["Strong","Mixed","Weak"], "synonyms": { "strong": "Strong", "s": "Strong", "mixed": "Mixed", "mix": "Mixed", "weak": "Weak", "w": "Weak" } },
+    { "ruleId": "ops_maturity", "type": "enum", "appliesTo": ["ops_maturity"], "strategy": "auto_fix", "enabled": true, "enum": ["High","Partial","Ad-hoc"], "synonyms": { "high": "High", "partial": "Partial", "part": "Partial", "ad hoc": "Ad-hoc", "ad-hoc": "Ad-hoc", "adhoc": "Ad-hoc" } },
+    { "ruleId": "decision_readiness", "type": "enum", "appliesTo": ["decision_readiness"], "strategy": "auto_fix", "enabled": true, "enum": ["Decision Maker engaged","Influencer engaged","No clarity"], "synonyms": { "decision maker engaged": "Decision Maker engaged", "influencer engaged": "Influencer engaged", "no clarity": "No clarity" } },
+    { "ruleId": "growth_intent", "type": "enum", "appliesTo": ["growth_intent"], "strategy": "auto_fix", "enabled": true, "enum": ["Clear intent","Exploring","No plan"], "synonyms": { "clear intent": "Clear intent", "exploring": "Exploring", "no plan": "No plan", "no plans": "No plan" } },
+    { "ruleId": "cash_runway", "type": "enum", "appliesTo": ["cash_runway"], "strategy": "auto_fix", "enabled": true, "enum": ["Positive","Break-even","Negative"], "synonyms": { "positive": "Positive", "+ve": "Positive", "break even": "Break-even", "breakeven": "Break-even", "break-even": "Break-even", "negative": "Negative", "-ve": "Negative" } }
+  ],
+  "dictionaries": {
+    "company_stopwords": ["inc","inc.","llc","l.l.c.","corp","corporation","co","co.","ltd","ltd.","plc","sa","s.a.","gmbh","ag","pty","bv","b.v."],
+    "bad_characters": ["\u200b","\u200e","\u00A0"]
+  },
+  "pii": { "fields": ["email","phone","address_line1","address_line2"] }
+}
