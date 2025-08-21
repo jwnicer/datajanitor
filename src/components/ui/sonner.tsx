@@ -1,7 +1,7 @@
 "use client"
 
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
-import { useTheme } from "next-themes"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
@@ -28,4 +28,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
   )
 }
 
-export { Toaster }
+const ThemeProvider = ({ children }: { children: React.ReactNode }) => (
+  <NextThemesProvider
+    attribute="class"
+    defaultTheme="system"
+    enableSystem
+    disableTransitionOnChange
+  >
+    {children}
+    <Toaster />
+  </NextThemesProvider>
+)
+
+export { Toaster, ThemeProvider }
