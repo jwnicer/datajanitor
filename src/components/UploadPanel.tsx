@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { SchemaMapper, type SchemaMapping } from './SchemaMapper';
+import { apiPost } from '@/lib/api';
 
 export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void, onComplete?:(payload:any)=>void }){
   const [file, setFile] = React.useState<File|null>(null);
@@ -51,7 +52,17 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
 
       setProgress(100);
       onStatus(JSON.stringify(payload));
-      toast.success('Upload complete');
+      toast.success('Upload complete. Starting processing...');
+
+      // Auto-start processing
+      try {
+        await apiPost('/api/process/start', { jobId, useLLM: true });
+        toast.success('Processing started');
+      } catch (e: any) {
+        toast.error('Failed to start processing', { description: e.message });
+      }
+
+
       if (onComplete) onComplete(payload);
     } catch (e: any) {
       toast.error('Upload failed', { description: String(e?.message || e) });
