@@ -24,26 +24,18 @@ import * as logger from 'firebase-functions/logger';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fetch from 'node-fetch';
-import { VertexAI } from '@google-cloud/vertexai';
+import { adHocLlmPrompt } from '@/ai/flows/ad-hoc-llm-prompting';
+import { llmAssistedDataReview } from '@/ai/flows/llm-assisted-data-review';
+import { enrichCompanyWebsite } from '@/ai/flows/company-website-enrichment';
+import type { Rule, RuleSet, Severity } from './rules-engine';
 
 // Types shared with RuleEngine context (local copy for independence)
-export type Severity = 'info' | 'warning' | 'error';
 export type FixSource = 'deterministic' | 'llm' | 'web';
-export interface Rule {
-  id: string; label: string; appliesTo: string[]; validator: string; params?: any; fix?: { strategy: string }; severity?: Severity; enabled: boolean;
-}
-export interface RuleSet { name: string; version: number; rules: Rule[]; dictionaries?: Record<string, any>; pii?: { fields: string[] } }
+
 
 if (getApps().length === 0) initializeApp();
 const db = getFirestore();
 
-const PROJECT = process.env.GCP_PROJECT!;
-const LOCATION = process.env.VERTEX_LOCATION || 'us-central1';
-const MODEL = process.env.VERTEX_MODEL || 'models/gemini-2.5-pro';
-
-const vertex = new VertexAI({ project: PROJECT, location: LOCATION });
-// @ts-ignore types for new SDKs may vary; using generic method access
-const gemini = vertex.getGenerativeModel({ model: MODEL });
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -89,39 +81,6 @@ async function writeIssues(jobId: string, issues: any[], source: FixSource) {
   await writer.close();
 }
 
-// ---------------------------------------------------------------------
-// LLM — core call
-// ---------------------------------------------------------------------
-async function geminiReview({ rules, rows, prompt }: { rules: Rule[]; rows: any[]; prompt?: string }) {
-  const system = [
-    'You are a meticulous data quality assistant.',
-    'Apply the provided checklist of rules and normalization dictionaries.',
-    'Return STRICT JSON: { "issues": [ { "rowId": "", "field": "", "ruleId": "", "problem": "", "suggestion": null, "confidence": 0 } ] }',
-    'If unsure, set confidence <= 0.5 and keep suggestion null.',
-  ].join('\n');
-
-  const payload = { prompt: prompt || 'Review for anomalies and rule violations.', rules, rows };
-  const res = await gemini.generateContent({
-    contents: [
-      { role: 'system', parts: [{ text: system }] },
-      { role: 'user', parts: [{ text: JSON.stringify(payload) }] },
-    ],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
-  } as any);
-
-  // Defensive parsing across SDK variants
-  const text = (res as any)?.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-               (res as any)?.candidates?.[0]?.content?.parts?.[0]?.text ||
-               (res as any)?.output_text || '{}';
-  try {
-    const parsed = JSON.parse(text);
-    const issues = Array.isArray(parsed?.issues) ? parsed.issues : [];
-    return issues;
-  } catch (e) {
-    logger.warn('Gemini returned non-JSON; wrapping as single issue');
-    return [ { rowId: rows?.[0]?.rowId ?? 'unknown', field: '*', ruleId: 'llm-parse', problem: 'Non-JSON response', suggestion: String(text).slice(0, 500), confidence: 0.2 } ];
-  }
-}
 
 // ---------------------------------------------------------------------
 // HTTP: /llm/adhoc — free-form prompt over selected rows/columns
@@ -142,16 +101,18 @@ export const llmAdhoc = onRequest({ cors: true }, async (req, res) => {
       const snaps = await Promise.all(rowIds.map((id: string) => db.collection('jobs').doc(jobId).collection('rows').doc(id).get()));
       const rows = snaps.filter(s => s.exists).map(s => ({ rowId: s.id, ...(s.data()?.normalized || s.data()?.data || {}) }));
       const redacted = redactRows(rows, ruleSet.pii?.fields);
-      const issues = await geminiReview({ rules: ruleSet.rules || [], rows: redacted, prompt });
+      const result = await adHocLlmPrompt({ prompt, sample: JSON.stringify(redacted), rules: JSON.stringify(ruleSet.rules) });
+      const issues = [{ rowId: 'ad-hoc', field: '*', ruleId: 'ad-hoc-llm', problem: prompt, suggestion: result, confidence: 0.9 }];
       await writeIssues(jobId, issues, 'llm');
       return res.json({ count: rows.length, issues });
     }
 
     const snap = await rowsQuery.get();
-    const rows = snap.docs.map(d => ({ rowId: d.id, ...(d.data()?.normalized || d.data()?.data || {}) }));
+    const rows = snap.docs.map(d => ({ rowId: d.id, ...(d.data()?.normalized || s.data()?.data || {}) }));
     const subset = columns && columns.length > 0 ? rows.map(r => { const s: any = { rowId: r.rowId }; for (const c of columns) s[c] = (r as any)[c]; return s; }) : rows;
     const redacted = redactRows(subset, ruleSet.pii?.fields);
-    const issues = await geminiReview({ rules: ruleSet.rules || [], rows: redacted, prompt });
+    const result = await adHocLlmPrompt({ prompt, sample: JSON.stringify(redacted), rules: JSON.stringify(ruleSet.rules) });
+    const issues = [{ rowId: 'ad-hoc', field: '*', ruleId: 'ad-hoc-llm', problem: prompt, suggestion: result, confidence: 0.9 }];
     await writeIssues(jobId, issues, 'llm');
     return res.json({ count: subset.length, issues });
   } catch (e: any) {
@@ -186,7 +147,7 @@ export const llmBatch = onRequest({ cors: true }, async (req, res) => {
     const allIssues: any[] = [];
     for (const b of batches) {
       const redacted = redactRows(b, ruleSet.pii?.fields);
-      const issues = await geminiReview({ rules: ruleSet.rules || [], rows: redacted });
+      const { issues } = await llmAssistedDataReview({ rules: ruleSet.rules || [], rows: redacted });
       allIssues.push(...issues);
     }
 
@@ -199,44 +160,6 @@ export const llmBatch = onRequest({ cors: true }, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------
-// Web Search Provider (Google CSE) and scoring
-// ---------------------------------------------------------------------
-const CSE_ID = process.env.CSE_ID;
-const CSE_KEY = process.env.CSE_KEY;
-
-interface WebCandidate { url: string; title: string; snippet: string; score: number }
-
-function scoreCandidate(name: string, loc: string | undefined, url: string, title: string, snippet: string) {
-  let s = 0;
-  const host = (() => { try { return new URL(url.startsWith('http') ? url : `https://${url}`).host; } catch { return url; } })();
-  const n = name.toLowerCase();
-  const t = (title || '').toLowerCase();
-  const sn = (snippet || '').toLowerCase();
-  if (t.includes(n)) s += 0.5;
-  if (sn.includes('about') || sn.includes('contact') || sn.includes('careers')) s += 0.2;
-  if (loc && (t.includes(loc.toLowerCase()) || sn.includes(loc.toLowerCase()))) s += 0.1;
-  if (!/wordpress|blogspot|wix|weebly|facebook|linkedin|crunchbase|yelp|glassdoor/i.test(host)) s += 0.15;
-  if (/^www\./.test(host)) s += 0.05;
-  if (/\.(com|net|org|io|ai|co)$/i.test(host)) s += 0.05;
-  return s;
-}
-
-async function findCompanyWebsite(name: string, location?: string) {
-  if (!CSE_ID || !CSE_KEY) throw new Error('CSE_ID and CSE_KEY env vars required');
-  const q = encodeURIComponent(`${name} official site ${location || ''}`.trim());
-  const url = `https://www.googleapis.com/customsearch/v1?key=${CSE_KEY}&cx=${CSE_ID}&q=${q}`;
-  const r = await fetch(url);
-  const data: any = await r.json();
-  const items = (data.items || []).slice(0, 8);
-  const ranked: WebCandidate[] = items.map((it: any) => ({
-    url: it.link, title: it.title, snippet: it.snippet,
-    score: scoreCandidate(name, location, it.link, it.title, it.snippet),
-  })).sort((a, b) => b.score - a.score);
-  const best = ranked[0];
-  return best ? { website: best.url, confidence: Math.min(1, best.score), evidence: ranked.slice(0, 3) } : null;
-}
-
-// ---------------------------------------------------------------------
 // HTTP: /web/company — single lookup
 // Body: { name, location?, jobId?, rowId?, fieldName?="company_website" }
 // ---------------------------------------------------------------------
@@ -246,7 +169,7 @@ export const webCompany = onRequest({ cors: true }, async (req, res) => {
     const { name, location, jobId, rowId, fieldName = 'company_website' } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name required' });
 
-    const result = await findCompanyWebsite(name, location);
+    const result = await enrichCompanyWebsite({companyName: name, location});
     if (jobId && rowId && result) {
       // write as a web-sourced suggestion issue
       const issue = {
@@ -256,8 +179,8 @@ export const webCompany = onRequest({ cors: true }, async (req, res) => {
         problem: `Suggest website for ${name}`,
         suggestion: { website: result.website, evidence: result.evidence },
         confidence: result.confidence,
-        severity: 'info',
-        source: 'web',
+        severity: 'info' as Severity,
+        source: 'web' as FixSource,
         status: 'open',
         createdAt: FieldValue.serverTimestamp(),
       };
@@ -287,8 +210,8 @@ export const webCompanyBulk = onRequest({ cors: true }, async (req, res) => {
       const name = (r as any)[companyField];
       const existing = (r as any)[websiteField];
       if (!name || existing) continue;
-      const result = await findCompanyWebsite(String(name));
-      if (!result) continue;
+      const result = await enrichCompanyWebsite({companyName: String(name)});
+      if (!result?.website) continue;
       enriched++;
       await db.collection('jobs').doc(jobId).collection('issues').add({
         rowId: r.id,
