@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-export function UploadPanel({ jobId, ruleSetId, onStatus }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void }){
+export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void, onComplete?:(payload:any)=>void }){
   const [file, setFile] = React.useState<File|null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -45,6 +45,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus }:{ jobId:string; ruleS
       setProgress(100);
       onStatus(JSON.stringify(payload));
       toast.success('Upload complete');
+      if (onComplete) onComplete(payload);
     } catch (e: any) {
       toast.error('Upload failed', { description: String(e?.message || e) });
     } finally {

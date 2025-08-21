@@ -38,8 +38,9 @@ const db = getFirestore(app);
 export default function App() {
   const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
   const [ruleSetId, setRuleSetId] = React.useState('default');
-  const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export'>('upload');
+  const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export' | 'mapping'>('upload');
   const [statusText, setStatusText] = React.useState('');
+  const [mapping, setMapping] = React.useState<any>(null);
 
   const runLLMBatch = async () => {
     const res = await fetch('/api/llm/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
@@ -60,6 +61,11 @@ export default function App() {
     const j = await res.json();
     toast.success('Web enrichment queued', { description: JSON.stringify(j) });
   };
+  
+  const onUploadComplete = (payload: any) => {
+    setMapping(payload);
+    setTab('mapping');
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -82,8 +88,23 @@ export default function App() {
             {tab === 'upload' && (
               <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={1} />
-                <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} />
+                <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
                 <HintCard title="Tip" text="After upload, check the Issues tab to review and apply fixes. Then run LLM Batch for tricky items." icon={<Sparkles className="h-5 w-5" />} />
+              </motion.div>
+            )}
+            {tab === 'mapping' && (
+              <motion.div key="mapping" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Stepper current={1} />
+                <Card>
+                    <CardHeader><CardTitle>Field Mapping</CardTitle></CardHeader>
+                    <CardContent>
+                        <p>Detected {mapping?.headers?.length} columns in {mapping?.filename}.</p>
+                        <ul className='grid grid-cols-3 gap-2 p-4'>
+                            {mapping?.headers?.map((h:string, i:number) => <li className='text-sm' key={i}>{h}</li>)}
+                        </ul>
+                        <Button onClick={() => setTab('issues')}>Continue to Issues</Button>
+                    </CardContent>
+                </Card>
               </motion.div>
             )}
             {tab === 'issues' && (
@@ -136,13 +157,13 @@ function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, o
   );
 }
 
-function Sidebar({ tab, setTab }: { tab: 'upload'|'issues'|'rules'|'export'; setTab: (t: any) => void }) {
+function Sidebar({ tab, setTab }: { tab: 'upload'|'issues'|'rules'|'export'|'mapping'; setTab: (t: any) => void }) {
   return (
     <aside className="col-span-12 lg:col-span-3">
       <Card>
         <CardContent className="p-2">
           <div className="grid gap-1">
-            <Button variant={tab==='upload'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('upload')}>
+            <Button variant={tab==='upload' || tab === 'mapping' ? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('upload')}>
               <Upload className="h-4 w-4 mr-2" /> Upload & Run
             </Button>
             <Button variant={tab==='issues'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('issues')}>
