@@ -81,7 +81,7 @@ export function DashboardClient({ jobs }: DashboardClientProps) {
                   </TableCell>
                   <TableCell>{job.rowCount.toLocaleString()}</TableCell>
                   <TableCell>
-                    {formatDistanceToNow(job.createdAt, { addSuffix: true })}
+                    {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
