@@ -1,6 +1,5 @@
-
 {
   "projects": {
-    "default": "YOUR_GCP_PROJECT_ID"
+    "default": "datamaestro-ejkkg"
   }
 }
