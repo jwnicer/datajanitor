@@ -1,0 +1,35 @@
+{
+  "name": "Insurance Default v1",
+  "version": 1,
+  "pii": { "fields": ["email", "phone", "dob", "ssn", "address_line1", "address_line2"] },
+  "dictionaries": {
+    "policyTypeSynonyms": {
+      "auto": "Auto",
+      "automobile": "Auto",
+      "property": "Property",
+      "gl": "General Liability",
+      "general liability": "General Liability",
+      "wc": "Workers' Comp",
+      "workers compensation": "Workers' Comp",
+      "bop": "Business Owners",
+      "umbrella": "Umbrella"
+    }
+  },
+  "rules": [
+    { "id": "req-policy", "label": "Policy number required", "appliesTo": ["policy_number"], "validator": "required", "enabled": true, "severity": "error" },
+    { "id": "req-insured", "label": "Insured name required", "appliesTo": ["insured_name"], "validator": "required", "enabled": true, "severity": "error" },
+    { "id": "dates-format", "label": "Dates ISO", "appliesTo": ["effective_date", "expiration_date"], "validator": "date_format", "params": { "to": "iso" }, "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "dates-order", "label": "Expiration after Effective", "appliesTo": ["expiration_date"], "validator": "custom_code", "params": { "fn": "dateOrder", "args": { "startField": "effective_date", "endField": "expiration_date" } }, "enabled": true, "severity": "error" },
+    { "id": "policy-type", "label": "Policy Type enum", "appliesTo": ["policy_type"], "validator": "enum", "params": { "allowed": ["Auto", "Property", "General Liability", "Workers' Comp", "Business Owners", "Umbrella"], "synonyms": { "auto": "Auto", "automobile": "Auto", "gl": "General Liability", "wc": "Workers' Comp", "bop": "Business Owners" } }, "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "email", "label": "Email normalize", "appliesTo": ["email"], "validator": "email", "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "phone", "label": "Phone normalize", "appliesTo": ["phone"], "validator": "phone", "fix": { "strategy": "suggest_only" }, "enabled": true },
+    { "id": "state", "label": "US State", "appliesTo": ["state"], "validator": "state", "params": { "countryField": "country" }, "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "country", "label": "Country ISO2", "appliesTo": ["country"], "validator": "country", "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "zip", "label": "ZIP code US", "appliesTo": ["zip"], "validator": "custom_code", "params": { "fn": "zipUS" }, "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "vin", "label": "Vehicle VIN", "appliesTo": ["vin"], "validator": "custom_code", "params": { "fn": "vin" }, "enabled": true, "severity": "warning" },
+    { "id": "naic", "label": "NAIC code format", "appliesTo": ["naic"], "validator": "custom_code", "params": { "fn": "naic" }, "enabled": true, "severity": "warning" },
+    { "id": "premium", "label": "Premium non-negative", "appliesTo": ["premium"], "validator": "range", "params": { "type": "number", "min": 0 }, "fix": { "strategy": "auto_fix" }, "enabled": true },
+    { "id": "website-from-name", "label": "Find Insurer Website", "appliesTo": ["insurer_name"], "validator": "custom_code", "params": { "fn": "findCompanyWebsite" }, "fix": { "strategy": "suggest_only" }, "enabled": false },
+    { "id": "llm-row", "label": "LLM anomaly scan", "appliesTo": ["*"], "validator": "llm_review", "params": { "scope": "row" }, "fix": { "strategy": "llm_suggest" }, "enabled": false }
+  ]
+}

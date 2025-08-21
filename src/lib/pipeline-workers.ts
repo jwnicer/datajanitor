@@ -44,6 +44,7 @@ import { pipeline as nodePipeline } from 'node:stream/promises';
 
 // NOTE: adjust the import path based on your repo layout
 import { RuleEngine, RuleSet, simpleCountryMapper, simpleStateMapper } from './rules-engine';
+import { customCodeRegistry } from './custom-code-registry';
 
 if (getApps().length === 0) {
   initializeApp();
@@ -159,6 +160,7 @@ export const parseWorker = onMessagePublished({ topic: PARSE_TOPIC }, async (eve
       countryMapper: simpleCountryMapper,
       stateMapper: simpleStateMapper,
       fuzzyMaxDistance: 2,
+      customCodeRegistry,
     });
 
     // Counters

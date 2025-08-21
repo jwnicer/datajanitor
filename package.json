@@ -10,7 +10,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "emulate": "firebase emulators:start",
+    "deploy": "firebase deploy --only hosting,functions"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",
