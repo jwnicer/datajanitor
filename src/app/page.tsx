@@ -37,17 +37,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export default function App() {
-  const [user, setUser] = React.useState<User | null>(null);
   const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
   const [ruleSetId, setRuleSetId] = React.useState('default');
   const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export' | 'mapping'>('upload');
   const [statusText, setStatusText] = React.useState('');
   const [mapping, setMapping] = React.useState<any>(null);
-
-  React.useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
-    return () => unsub();
-  }, []);
 
   const runLLMBatch = async () => {
     const res = await apiPost('/api/llm/batch', { jobId });
@@ -81,7 +75,6 @@ export default function App() {
         onRunLLM={runLLMBatch}
         onAdhoc={runAdhoc}
         onWeb={webEnrich}
-        user={user}
         onSignOut={() => auth.signOut()}
       />
 
@@ -93,7 +86,7 @@ export default function App() {
             {tab === 'upload' && (
               <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={1} />
-                <UploadPanel user={user} jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
+                <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
                 <HintCard title="Tip" text="After upload, check the Issues tab to review and apply fixes. Then run LLM Batch for tricky items." icon={<Sparkles className="h-5 w-5" />} />
               </motion.div>
             )}
@@ -138,8 +131,8 @@ export default function App() {
   );
 }
 
-function Topbar({ user, jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
-  { user: User | null; jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
+function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
+  { jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
   return (
     <div className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50">
       <div className="mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center gap-3">
@@ -156,7 +149,6 @@ function Topbar({ user, jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAd
           <Button variant="outline" onClick={onAdhoc}><Wand2 className="h-4 w-4 mr-2" /> Ad‑hoc</Button>
           <Button onClick={onRunLLM}><Play className="h-4 w-4 mr-2" /> LLM Batch</Button>
           <ThemeToggle />
-           {user && <Button variant="outline" size="icon" onClick={onSignOut}><LogOut className="h-4 w-4" /></Button>}
         </div>
       </div>
     </div>
