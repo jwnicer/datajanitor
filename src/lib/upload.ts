@@ -10,9 +10,10 @@ const st = new Storage();
 const db2 = getDb2();
 
 export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    if (req.method !== 'POST') return res.status(405).send('Use POST');
-    
+    if (req.method !== 'POST') return res.status(405).send(JSON.stringify({ error: 'Use POST' }));
+
     // Auth is now optional. If token provided, we associate with user.
     let uid = 'anonymous';
     const authHeader = req.headers.authorization || '';
@@ -26,19 +27,51 @@ export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (r
       }
     }
 
+    // Params
     const jobId = String(req.query.jobId || 'job-' + Math.random().toString(36).slice(2));
     const ruleSetId = String(req.query.ruleSetId || 'default');
+    const filename = (req.headers['x-file-name'] as string) || `upload-${Date.now()}`;
 
-    const filename = req.headers['x-file-name'] ? String(req.headers['x-file-name']) : `upload-${Date.now()}`;
-    const bucket = process.env.UPLOAD_BUCKET || process.env.GCLOUD_STORAGE_BUCKET!;
+    // Ensure we have a body (raw bytes)
+    const getBody = async (): Promise<Buffer> => {
+      const anyReq = req as any;
+      if (anyReq.rawBody && Buffer.isBuffer(anyReq.rawBody) && anyReq.rawBody.length > 0) return anyReq.rawBody;
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        req.on('end', () => resolve());
+        req.on('error', reject);
+      });
+      return Buffer.concat(chunks);
+    };
+
+    const body = await getBody();
+    if (!body || body.length === 0) throw new Error('Empty upload body');
+
+    // Bucket & path
+    const bucket = process.env.UPLOAD_BUCKET || process.env.GCLOUD_STORAGE_BUCKET;
+    if (!bucket) throw new Error('UPLOAD_BUCKET or GCLOUD_STORAGE_BUCKET is not set');
     const path = `uploads/${uid}/${jobId}/${filename}`;
 
-    await st.bucket(bucket).file(path).save(req.rawBody, { resumable: false, metadata: { contentType: req.headers['content-type'] as string } });
+    // Save
+    await st.bucket(bucket).file(path).save(body, {
+      resumable: false,
+      metadata: { contentType: (req.headers['content-type'] as string) || 'application/octet-stream' },
+    });
 
-    await db2.collection('jobs').doc(jobId).set({ createdBy: uid, ruleSetId, filename, fileType: filename.split('.').pop(), status: 'queued', createdAt: FieldValue2.serverTimestamp() }, { merge: true });
+    // Create/merge Job doc
+    await db2.collection('jobs').doc(jobId).set({
+      createdBy: uid,
+      ruleSetId,
+      filename,
+      fileType: filename.split('.').pop(),
+      status: 'queued',
+      createdAt: FieldValue2.serverTimestamp(),
+    }, { merge: true });
 
-    res.json({ ok: true, jobId, path: `gs://${bucket}/${path}` });
+    return res.status(200).send(JSON.stringify({ ok: true, jobId, path: `gs://${bucket}/${path}` }));
   } catch (e: any) {
-    res.status(500).json({ error: String(e?.message || e) });
+    const msg = e?.message || String(e);
+    return res.status(500).send(JSON.stringify({ error: msg }));
   }
 });

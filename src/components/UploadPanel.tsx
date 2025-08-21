@@ -19,30 +19,43 @@ export function UploadPanel({ jobId, ruleSetId, onStatus }:{ jobId:string; ruleS
   };
 
   const upload = async () => {
-    if (!file) return toast.error('Choose a file');
+    if (!file) { toast.error('Choose a file'); return; }
     try {
-      setUploading(true); setProgress(10);
-      const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}`, {
-        method: 'POST', headers: { 'x-file-name': file.name, 'Content-Type': file.type }, body: file,
+      setUploading(true); setProgress(15);
+      const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}` ,{
+        method: 'POST',
+        headers: {
+          'x-file-name': file.name,
+          // Force binary so the function treats body as raw bytes
+          'Content-Type': 'application/octet-stream',
+        },
+        body: file,
       });
+
       setProgress(70);
-      const j = await res.json();
+      const raw = await res.text();
+      let payload: any = null;
+      try { payload = JSON.parse(raw); } catch { payload = { body: raw }; }
+
+      if (!res.ok || payload?.error) {
+        const msg = payload?.error || payload?.body || `Upload failed (HTTP ${res.status})`;
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
+
       setProgress(100);
-      onStatus(JSON.stringify(j));
+      onStatus(JSON.stringify(payload));
       toast.success('Upload complete');
     } catch (e: any) {
       toast.error('Upload failed', { description: String(e?.message || e) });
     } finally {
       setUploading(false);
-      setTimeout(()=>setProgress(0), 800);
+      setTimeout(() => setProgress(0), 800);
     }
   };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Upload & Start</CardTitle>
-      </CardHeader>
+      <CardHeader><CardTitle>Upload & Start</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div
           onDrop={onDrop}
