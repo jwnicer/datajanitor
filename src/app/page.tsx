@@ -48,9 +48,13 @@ export default function App() {
   const signin = async () => {
     const email = prompt('Email');
     const pass = "era101";
-    if (!email || !pass) return;
-    await signInWithEmailAndPassword(auth, email, pass);
-    toast.success('Signed in');
+    if (!email) return;
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      toast.success('Signed in');
+    } catch (e: any) {
+      toast.error('Sign in failed', { description: e.message });
+    }
   };
 
   const signout = async () => {
