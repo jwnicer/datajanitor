@@ -6,29 +6,36 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { SchemaMapper, type SchemaMapping } from './SchemaMapper';
 
 export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:string; ruleSetId:string; onStatus:(s:string)=>void, onComplete?:(payload:any)=>void }){
   const [file, setFile] = React.useState<File|null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
+  const [showMapper, setShowMapper] = React.useState(false);
+  const mappingRef = React.useRef<SchemaMapping|null>(null);
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const f = e.dataTransfer.files?.[0];
     if (f) setFile(f);
   };
+  
+  const begin = () => { if (!file) return toast.error('Choose a file'); setShowMapper(true); };
 
-  const upload = async () => {
-    if (!file) { toast.error('Choose a file'); return; }
+  async function doUpload() {
+    if (!file) return; 
     try {
       setUploading(true); setProgress(15);
+      const headers: Record<string,string> = {
+        'x-file-name': file.name,
+        'Content-Type': 'application/octet-stream',
+      };
+      if (mappingRef.current) headers['x-schema-mapping'] = btoa(unescape(encodeURIComponent(JSON.stringify(mappingRef.current))));
+
       const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}` ,{
         method: 'POST',
-        headers: {
-          'x-file-name': file.name,
-          // Force binary so the function treats body as raw bytes
-          'Content-Type': 'application/octet-stream',
-        },
+        headers: headers,
         body: file,
       });
 
@@ -54,6 +61,13 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
     }
   };
 
+  function onConfirm(schema: SchemaMapping){ 
+    mappingRef.current = schema; 
+    setShowMapper(false); 
+    doUpload(); 
+  }
+
+
   return (
     <Card>
       <CardHeader><CardTitle>Upload & Start</CardTitle></CardHeader>
@@ -69,10 +83,11 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
           {file && <div className="mt-2 text-xs text-muted-foreground">{file.name} • {(file.size/1024/1024).toFixed(2)} MB</div>}
           {uploading && <Progress className="mt-3" value={progress} />}
           <div className="mt-4 flex gap-2 justify-center">
-            <Button onClick={upload} disabled={!file || uploading}>Upload</Button>
+            <Button onClick={begin} disabled={!file || uploading}>Upload</Button>
           </div>
         </div>
       </CardContent>
+       {file && <SchemaMapper file={file} open={showMapper} onClose={()=>setShowMapper(false)} onConfirm={onConfirm} />}
     </Card>
   );
 }
