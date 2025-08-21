@@ -64,7 +64,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus }:{ jobId:string; ruleS
         >
           <div className="text-sm text-muted-foreground">Drag & drop CSV/XLSX here</div>
           <div className="my-2">or</div>
-          <Input type="file" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
+          <Input type="file" onChange={(e)=>setFile(e.target.files?.[0]||null)} accept=".csv,.tsv,.xlsx,.xls,.jsonl,.ndjson" />
           {file && <div className="mt-2 text-xs text-muted-foreground">{file.name} • {(file.size/1024/1024).toFixed(2)} MB</div>}
           {uploading && <Progress className="mt-3" value={progress} />}
           <div className="mt-4 flex gap-2 justify-center">

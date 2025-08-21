@@ -64,7 +64,6 @@ export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (r
       createdBy: uid,
       ruleSetId,
       filename,
-      fileType: filename.split('.').pop(),
       status: 'queued',
       createdAt: FieldValue2.serverTimestamp(),
     }, { merge: true });
