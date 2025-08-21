@@ -1,6 +1,7 @@
 
 'use client';
 import React from 'react';
+import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,27 +13,12 @@ export interface SchemaMapping { columns: ColumnSpec[] }
 
 const CANONICAL_FIELDS = ['company_name','company_website','email','phone','country','state','city','zip','address','address_line1','address_line2','insured_name','policy_number','policy_type','effective_date','expiration_date','premium','naic','vin','type','website'];
 
-// Small loader that injects the CDN script once and returns window.XLSX
-async function loadXLSX(): Promise<any> {
-  const w = window as any;
-  if (w.XLSX) return w.XLSX;
-  await new Promise<void>((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load XLSX'));
-    document.head.appendChild(s);
-  });
-  return (window as any).XLSX;
-}
-
 export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; open: boolean; onClose: ()=>void; onConfirm: (schema: SchemaMapping)=>void }){
   const [columns, setColumns] = React.useState<ColumnSpec[]>([]);
 
   React.useEffect(() => { if (open && file) parseFile(file); }, [open, file]);
 
   async function parseFile(f: File) {
-    const XLSX = await loadXLSX();
     const ab = await f.arrayBuffer();
     const wb = XLSX.read(ab, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
