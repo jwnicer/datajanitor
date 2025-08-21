@@ -1,22 +1,56 @@
-
-import { onRequest as onRequestUpload } from 'firebase-functions/v2/https';
-import { Storage } from '@google-cloud/storage';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { onRequest } from 'firebase-functions/v2/https';
+import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getStorage as getAdminStorage } from 'firebase-admin/storage';
+import { Storage } from '@google-cloud/storage';
+import * as crypto from 'crypto';
 
-if (getApps().length === 0) initializeApp();
-const st = new Storage();
+// ----- Admin init -----
+if (!getApps().length) initializeApp();
 const db = getFirestore();
+const gcs = new Storage();
+const DEFAULT_BUCKET = process.env.UPLOAD_BUCKET
+  || process.env.GCLOUD_STORAGE_BUCKET
+  || (() => { try { return getAdminStorage().bucket().name; } catch { return ''; } })();
+if (!DEFAULT_BUCKET) console.warn('[WARN] No bucket env set; set UPLOAD_BUCKET to your default bucket name');
 
-export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  try {
+// ----- Helpers -----
+function b64json<T=any>(b64?: string): T | null { try { return b64 ? JSON.parse(Buffer.from(b64, 'base64').toString('utf8')) : null; } catch { return null; } }
+
+function inferType(filename: string, contentType?: string){
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') return 'xlsx';
+  if (ext === 'jsonl' || ext === 'ndjson') return 'jsonl';
+  if (ext === 'tsv') return 'tsv';
+  if (ext === 'csv') return 'csv';
+  if (contentType?.includes('spreadsheetml')) return 'xlsx';
+  if (contentType?.includes('json')) return 'jsonl';
+  if (contentType?.includes('tsv')) return 'tsv';
+  if (contentType?.includes('csv')) return 'csv';
+  return 'csv';
+}
+function allowCORS(res: any){
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization,content-type,x-file-name,x-schema-mapping');
+}
+
+// ===========================================================================
+// 1) HTTP Upload — uses rawBody, creates Job doc idempotently, returns JSON
+// ===========================================================================
+export const upload = onRequest({ cors: true, maxInstances: 5 }, async (req, res) => {
+  allowCORS(res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  res.setHeader('Content-Type','application/json');
+  try{
     if (req.method !== 'POST') return res.status(405).send(JSON.stringify({ error: 'Use POST' }));
 
-    // Auth is now optional. If token provided, we associate with user.
-    let uid = 'anonymous';
+    const bucketName = DEFAULT_BUCKET; if (!bucketName) throw new Error('UPLOAD_BUCKET not set');
+
+    // Auth
     const authHeader = req.headers.authorization || '';
+    let uid = 'anonymous';
     if (authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
@@ -28,48 +62,30 @@ export const upload = onRequestUpload({ cors: true, maxInstances: 10 }, async (r
     }
 
     // Params
-    const jobId = String(req.query.jobId || 'job-' + Math.random().toString(36).slice(2, 8));
-    const ruleSetId = String(req.query.ruleSetId || 'default');
-    const filename = (req.headers['x-file-name'] as string) || `upload-${Date.now()}`;
+    const fileName = (req.headers['x-file-name'] as string) || 'upload.bin';
+    const jobId = (req.query.jobId as string) || `job-${crypto.randomBytes(3).toString('hex')}`;
+    const ruleSetId = (req.query.ruleSetId as string) || 'default';
+    const mapping = b64json(req.headers['x-schema-mapping'] as string | undefined);
 
-    // v2: body should be available as Buffer in rawBody when Content-Type is octet-stream
-    const anyReq = req as any;
-    const body: Buffer | undefined = anyReq?.rawBody;
-    if (!body || !Buffer.isBuffer(body) || body.length === 0) {
-      throw new Error('Empty rawBody. Ensure the client sets Content-Type: application/octet-stream and sends the file bytes.');
-    }
+    // Body
+    const raw = req.rawBody; if (!raw || !raw.length) throw new Error('Empty request body');
 
-    // Optional schema mapping header
-    let schema: any = undefined;
-    const mapHeader = req.headers['x-schema-mapping'];
-    if (mapHeader && typeof mapHeader === 'string') {
-      try { schema = JSON.parse(Buffer.from(mapHeader, 'base64').toString('utf8')); } catch {}
-    }
-
-    const bucket = process.env.UPLOAD_BUCKET || process.env.GCLOUD_STORAGE_BUCKET;
-    if (!bucket) throw new Error('UPLOAD_BUCKET or GCLOUD_STORAGE_BUCKET is not set');
-    const path = `uploads/${uid}/${jobId}/${filename}`;
-
-    await st.bucket(bucket).file(path).save(body, {
-      resumable: false,
-      metadata: { contentType: (req.headers['content-type'] as string) || 'application/octet-stream' },
+    const destPath = `uploads/${uid}/${jobId}/${fileName}`;
+    await gcs.bucket(bucketName).file(destPath).save(raw, {
+      contentType: (req.headers['content-type'] as string) || 'application/octet-stream',
+      metadata: { metadata: { uid: uid, jobId, ruleSetId } }
     });
 
-    const jobDoc: any = {
-      createdBy: uid,
-      ruleSetId,
-      filename,
-      fileType: filename.split('.').pop(),
-      status: 'queued',
-      createdAt: FieldValue.serverTimestamp(),
-    };
-    if (schema) jobDoc.schema = schema;
+    // Create/merge Job doc BEFORE the trigger runs
+    const fileType = inferType(fileName, req.headers['content-type'] as string | undefined);
+    await db.collection('jobs').doc(jobId).set({
+      status: 'uploaded', filename: fileName, fileType, path: destPath,
+      createdBy: uid, ruleSetId, createdAt: FieldValue.serverTimestamp(),
+      schema: mapping || null,
+    }, { merge: true });
 
-    await db.collection('jobs').doc(jobId).set(jobDoc, { merge: true });
-
-    return res.status(200).send(JSON.stringify({ ok: true, jobId, path: `gs://${bucket}/${path}`, schemaSaved: !!schema }));
-  } catch (e: any) {
-    const msg = e?.message || String(e);
-    return res.status(500).send(JSON.stringify({ error: msg }));
+    return res.send(JSON.stringify({ ok: true, jobId, path: destPath, fileType }));
+  } catch(e:any){
+    return res.status(500).send(JSON.stringify({ error: e?.message || String(e) }));
   }
 });

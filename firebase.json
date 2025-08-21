@@ -11,8 +11,7 @@
       "region": "us-central1"
     },
     "rewrites": [
-      { "source": "/schema/propose", "function": "schemaPropose" },
-      { "source": "/process/start", "function": "processStart" }
+      { "source": "/schema/propose", "function": "schemaPropose" }
     ]
   },
   "emulators": {
