@@ -1,10 +1,12 @@
 
-import { UploadClient } from '@/components/upload-client';
+'use client'
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function UploadPage() {
-    return (
-        <div className="p-8">
-            <UploadClient />
-        </div>
-    );
+    const router = useRouter();
+    useEffect(() => {
+        router.replace('/');
+    }, [router]);
+    return null;
 }
