@@ -29,9 +29,9 @@ export default function RootLayout({
             <AppSidebar />
             <SidebarInset>
               {children}
+              <Toaster richColors />
             </SidebarInset>
           </SidebarProvider>
-          <Toaster richColors />
         </ThemeProvider>
       </body>
     </html>
