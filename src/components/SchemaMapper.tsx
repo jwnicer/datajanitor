@@ -33,10 +33,11 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
     const sample = body.slice(0, 500);
     setSampleRows(sample);
     const cols: ColumnSpec[] = hdr.map((h: string, i: number) => {
+      const sourceName = h || `col_${i+1}`;
       const values = sample.map(r => r?.[i]).filter((v: any) => v!==undefined && v!==null).map(String);
       const info = inferType(values);
       const sugg = suggestTargets(h, info.type);
-      return { source: h || `col_${i+1}`, type: info.type, confidence: info.confidence, samples: values.slice(0,5), suggestTargets: sugg, target: sugg[0] };
+      return { source: sourceName, type: info.type, confidence: info.confidence, samples: values.slice(0,5), suggestTargets: sugg, target: sugg[0] || sourceName };
     });
     setColumns(cols);
   }
@@ -124,7 +125,7 @@ export function SchemaMapper({ file, open, onClose, onConfirm }:{ file: File; op
                   <td className="p-2">
                     <select className="border rounded px-2 py-1" value={c.target||''} onChange={(e)=> setColumns(prev=> prev.map((x,idx)=> idx===i? {...x, target: e.target.value }: x)) }>
                       <option value="">(choose)</option>
-                      {[...new Set([...(c.suggestTargets||[]), ...CANONICAL_FIELDS])].map(f=> (<option key={f} value={f}>{f}</option>))}
+                      {[...new Set([c.source, ...(c.suggestTargets||[]), ...CANONICAL_FIELDS])].map(f=> (<option key={f} value={f}>{f}</option>))}
                     </select>
                   </td>
                   <td className="p-2 text-xs italic text-muted-foreground">{c.reason}</td>
