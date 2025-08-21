@@ -47,7 +47,7 @@ export default function App() {
 
   const signin = async () => {
     const email = prompt('Email');
-    const pass = prompt('Password');
+    const pass = "era101";
     if (!email || !pass) return;
     await signInWithEmailAndPassword(auth, email, pass);
     toast.success('Signed in');
