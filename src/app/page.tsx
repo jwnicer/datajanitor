@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { UploadPanel } from '@/components/UploadPanel';
 import { IssuesTable } from '@/components/IssuesTable';
@@ -64,7 +63,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Toaster position="top-right" richColors />
       <Topbar
         jobId={jobId}
         setJobId={setJobId}

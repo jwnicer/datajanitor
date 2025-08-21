@@ -3,6 +3,7 @@ import './globals.css';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { ThemeProvider } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/sonner';
 
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({
               {children}
             </SidebarInset>
           </SidebarProvider>
+          <Toaster richColors />
         </ThemeProvider>
       </body>
     </html>
