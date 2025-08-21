@@ -98,7 +98,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
           </div>
         </div>
       </CardContent>
-       {file && <SchemaMapper file={file} open={showMapper} onClose={()=>setShowMapper(false)} onConfirm={onConfirm} />}
+       {file && <SchemaMapper file={file} open={showMapper} onClose={()=>setShowMapper(false)} onConfirm={onConfirm} ruleSetId={ruleSetId} />}
     </Card>
   );
 }
