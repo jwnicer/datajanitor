@@ -36,7 +36,6 @@ const ThemeProvider = ({ children }: { children: React.ReactNode }) => (
     disableTransitionOnChange
   >
     {children}
-    <Toaster />
   </NextThemesProvider>
 )
 
