@@ -1,8 +1,9 @@
 import type {Metadata} from 'next';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { Toaster } from 'sonner';
+
 
 export const metadata: Metadata = {
   title: 'Data Janitor',

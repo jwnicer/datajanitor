@@ -1,145 +1,235 @@
 
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FileUp, Settings, Sparkles, Bug, Upload, TableProperties, Database, LogOut, Play, Wand2, Globe2, CheckCircle2, XCircle, Moon, Sun } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RuleBuilder } from '@/components/rule-builder';
-import { IssuesConsole } from '@/components/issues-console';
-import { apiPost } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
+import { UploadPanel } from '@/components/UploadPanel';
+import { IssuesTable } from '@/components/IssuesTable';
+import { RuleEditorPanel } from '@/components/RuleEditorPanel';
+import { ExportPanel } from '@/components/ExportPanel';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-export default function Home() {
-  const [tab, setTab] = useState<'upload' | 'rules' | 'issues' | 'export'>('upload');
-  const [jobId, setJobId] = useState<string>('job-' + Math.random().toString(36).slice(2, 8));
-  const [ruleSetId, setRuleSetId] = useState<string>('default');
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [status, setStatus] = useState('');
+// Firebase config via Vite env (as in previous batches)
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
 
-  const upload = async () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) return alert('Pick a file first');
-    setStatus(`Uploading ${file.name}...`);
-    try {
-      // Note: This uses a simplified client-side upload via a backend function.
-      // In a production app, you might use a signed URL for direct GCS upload.
-      const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type, 'X-File-Name': file.name },
-        body: file,
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setStatus('Upload complete: ' + JSON.stringify(data));
-      setTab('issues'); // Switch to issues tab after upload
-    } catch (e: any) {
-      setStatus('Upload error: ' + e.message);
-    }
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+export default function App() {
+  const [user, setUser] = React.useState<any>(null);
+  const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
+  const [ruleSetId, setRuleSetId] = React.useState('default');
+  const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export'>('upload');
+  const [statusText, setStatusText] = React.useState('');
+
+  React.useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  const signin = async () => {
+    const email = prompt('Email');
+    const pass = prompt('Password');
+    if (!email || !pass) return;
+    await signInWithEmailAndPassword(auth, email, pass);
+    toast.success('Signed in');
+  };
+
+  const signout = async () => {
+    await signOut(auth);
+    toast('Signed out');
   };
 
   const runLLMBatch = async () => {
-    setStatus('Triggering LLM batch review...');
-    const res = await apiPost('/api/llm/batch', { jobId });
-    setStatus('LLM batch result: ' + JSON.stringify(res));
+    const res = await fetch('/api/llm/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
+    const j = await res.json();
+    toast.success('LLM batch complete', { description: JSON.stringify(j) });
   };
 
   const runAdhoc = async () => {
-    const promptValue = window.prompt('Enter prompt for ad-hoc review', 'Find any anomalies in email and phone');
+    const promptValue = window.prompt('Ad-hoc prompt (e.g., "Find anomalies in email/phone")');
     if (!promptValue) return;
-    setStatus('Running ad-hoc prompt...');
-    const res = await apiPost('/api/llm/adhoc', { jobId, prompt: promptValue, limit: 20 });
-    setStatus('LLM ad-hoc result: ' + JSON.stringify(res));
+    const res = await fetch('/api/llm/adhoc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, prompt: promptValue, limit: 20 }) });
+    const j = await res.json();
+    toast.success('Ad-hoc review complete', { description: JSON.stringify(j) });
   };
 
   const webEnrich = async () => {
-    setStatus('Enriching with company websites...');
-    const res = await apiPost('/api/web/company/bulk', { jobId, limit: 50 });
-    setStatus('Web enrichment result: ' + JSON.stringify(res));
+    const res = await fetch('/api/web/company/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, limit: 50 }) });
+    const j = await res.json();
+    toast.success('Web enrichment queued', { description: JSON.stringify(j) });
   };
 
-  const exportToBQ = async () => {
-    const dataset = prompt('BigQuery dataset ID');
-    if (!dataset) return;
-    const table = prompt('BigQuery table ID');
-    if (!table) return;
-    setStatus('Exporting to BigQuery...');
-    const res = await apiPost('/api/export/bq', { jobId, dataset, table });
-    setStatus('Export to BQ result: ' + JSON.stringify(res));
-  };
+  if (!user) return <AuthScreen onSignin={signin} />;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <h1 className="text-3xl font-bold font-headline">Data Janitor Console</h1>
+    <div className="min-h-screen bg-background text-foreground">
+      <Toaster position="top-right" richColors />
+      <Topbar
+        jobId={jobId}
+        setJobId={setJobId}
+        ruleSetId={ruleSetId}
+        setRuleSetId={setRuleSetId}
+        onRunLLM={runLLMBatch}
+        onAdhoc={runAdhoc}
+        onWeb={webEnrich}
+        onSignOut={signout}
+      />
 
+      <div className="mx-auto max-w-7xl grid grid-cols-12 gap-6 p-4 md:p-6">
+        <Sidebar tab={tab} setTab={setTab} />
+
+        <main className="col-span-12 lg:col-span-9 space-y-6">
+          <AnimatePresence mode="wait">
+            {tab === 'upload' && (
+              <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Stepper current={1} />
+                <UploadPanel user={user} jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} />
+                <HintCard title="Tip" text="After upload, check the Issues tab to review and apply fixes. Then run LLM Batch for tricky items." icon={<Sparkles className="h-5 w-5" />} />
+              </motion.div>
+            )}
+            {tab === 'issues' && (
+              <motion.div key="issues" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Stepper current={2} />
+                <IssuesTable jobId={jobId} />
+              </motion.div>
+            )}
+            {tab === 'rules' && (
+              <motion.div key="rules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Stepper current={0} />
+                <RuleEditorPanel ruleSetId={ruleSetId} />
+              </motion.div>
+            )}
+            {tab === 'export' && (
+              <motion.div key="export" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Stepper current={3} />
+                <ExportPanel jobId={jobId} />
+                <HintCard title="Heads up" text="Your cleaned NDJSON is also available in Cloud Storage under exports/<jobId>/normalized.ndjson." icon={<Database className="h-5 w-5" />} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen({ onSignin }: { onSignin: () => void }) {
+  return (
+    <div className="min-h-screen grid place-items-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Bug className="h-5 w-5" /> Data Janitor</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">Sign in with your email to continue.</p>
+          <Button className="w-full" onClick={onSignin}><LogOut className="h-4 w-4 mr-2 rotate-180" /> Sign in</Button>
+        </CardContent>
+      </Card>
+      <ThemeToggle className="fixed bottom-4 right-4" />
+      <Toaster />
+    </div>
+  );
+}
+
+function Topbar({ jobId, setJobId, ruleSetId, setRuleSetId, onRunLLM, onAdhoc, onWeb, onSignOut }:
+  { jobId: string; setJobId: (s: string) => void; ruleSetId: string; setRuleSetId: (s: string) => void; onRunLLM: () => void; onAdhoc: () => void; onWeb: () => void; onSignOut: () => void; }) {
+  return (
+    <div className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50">
+      <div className="mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center gap-3">
+        <div className="font-semibold tracking-tight flex items-center gap-2"><FileUp className="h-5 w-5" /> Data Janitor</div>
+        <Separator orientation="vertical" className="mx-2" />
+        <div className="hidden md:flex items-center gap-2">
+          <Badge variant="outline">Job</Badge>
+          <Input value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-44" />
+          <Badge variant="outline">RuleSet</Badge>
+          <Input value={ruleSetId} onChange={(e) => setRuleSetId(e.target.value)} className="w-44" />
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" onClick={onWeb}><Globe2 className="h-4 w-4 mr-2" /> Enrich</Button>
+          <Button variant="outline" onClick={onAdhoc}><Wand2 className="h-4 w-4 mr-2" /> Ad‑hoc</Button>
+          <Button onClick={onRunLLM}><Play className="h-4 w-4 mr-2" /> LLM Batch</Button>
+          <ThemeToggle />
+          <Button variant="ghost" onClick={onSignOut}><LogOut className="h-4 w-4" /></Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ tab, setTab }: { tab: 'upload'|'issues'|'rules'|'export'; setTab: (t: any) => void }) {
+  return (
+    <aside className="col-span-12 lg:col-span-3">
       <Card>
-        <CardContent className="p-4 grid md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="jobId">Job ID</Label>
-            <Input id="jobId" value={jobId} onChange={(e) => setJobId(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ruleSetId">RuleSet ID</Label>
-            <Input id="ruleSetId" value={ruleSetId} onChange={(e) => setRuleSetId(e.target.value)} />
-          </div>
-          <div className="md:col-span-3 p-2 rounded-md bg-muted text-muted-foreground text-sm font-mono h-12 overflow-auto">
-            {status || 'Status messages will appear here.'}
+        <CardContent className="p-2">
+          <div className="grid gap-1">
+            <Button variant={tab==='upload'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('upload')}>
+              <Upload className="h-4 w-4 mr-2" /> Upload & Run
+            </Button>
+            <Button variant={tab==='issues'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('issues')}>
+              <TableProperties className="h-4 w-4 mr-2" /> Issues Review
+            </Button>
+            <Button variant={tab==='rules'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('rules')}>
+              <Settings className="h-4 w-4 mr-2" /> Rules
+            </Button>
+            <Button variant={tab==='export'? 'secondary':'ghost'} className="justify-start" onClick={() => setTab('export')}>
+              <Database className="h-4 w-4 mr-2" /> Export
+            </Button>
           </div>
         </CardContent>
       </Card>
+      <div className="mt-4">
+        <HintCard title="Workflow" text="1) Upload → 2) Review Issues → 3) Apply Safe Fixes → 4) LLM Batch → 5) Export" icon={<Sparkles className="h-5 w-5" />} />
+      </div>
+    </aside>
+  );
+}
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as any)} className="w-full">
-        <TabsList>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
-          <TabsTrigger value="rules">Rules</TabsTrigger>
-          <TabsTrigger value="issues">Issues</TabsTrigger>
-          <TabsTrigger value="export">Export</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="upload" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>File Upload &amp; Processing</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border rounded-lg">
-                <Input ref={fileRef} type="file" className="max-w-xs" />
-                <Button onClick={upload}>Upload &amp; Validate</Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button variant="outline" onClick={runLLMBatch}>Run LLM Batch Review</Button>
-                <Button variant="outline" onClick={runAdhoc}>Run Ad-hoc Prompt</Button>
-                <Button variant="outline" onClick={webEnrich}>Enrich Company Websites</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="rules" className="mt-4">
-          <RuleBuilder ruleSetId={ruleSetId} />
-        </TabsContent>
-
-        <TabsContent value="issues" className="mt-4">
-          <IssuesConsole jobId={jobId} />
-        </TabsContent>
-
-        <TabsContent value="export" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Export Cleaned Data</CardTitle>
-            </CardHeader>
-            <CardContent className="flex gap-4">
-              <Button onClick={exportToBQ}>Export to BigQuery</Button>
-              <Button variant="outline" asChild>
-                <a href={`https://console.cloud.google.com/storage/browser/_/exports/${jobId}`} target="_blank" rel="noopener noreferrer">
-                  View in Cloud Storage
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+function Stepper({ current }: { current: 0 | 1 | 2 | 3 }) {
+  const steps = [
+    { label: 'Rules' },
+    { label: 'Upload' },
+    { label: 'Review' },
+    { label: 'Export' },
+  ];
+  return (
+    <div className="flex items-center gap-2 text-sm mb-2">
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center">
+          <Badge variant={i===current?'default':'outline'} className="mr-2">{i+1}</Badge> {s.label}
+          {i < steps.length - 1 && <Separator orientation="vertical" className="mx-3 h-6" />}
+        </div>
+      ))}
     </div>
+  );
+}
+
+function HintCard({ title, text, icon }: { title: string; text: string; icon: React.ReactNode }) {
+  return (
+    <Card className="mt-4">
+      <CardContent className="p-4 flex items-start gap-3 text-sm text-muted-foreground">
+        <div className="mt-0.5">{icon}</div>
+        <div>
+          <div className="font-medium text-foreground">{title}</div>
+          <div>{text}</div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
