@@ -121,7 +121,7 @@ function clamp01(n?: number) {
 }
 
 function safeLower(s: any) {
-  return typeof s === 'string' ? s.toLowerCase() : s;
+  return s == null ? '' : String(s).toLowerCase();
 }
 
 // --------------------------

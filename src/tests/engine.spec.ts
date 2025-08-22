@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RuleEngine, RuleSet } from '../lib/rules-engine';
+import { RuleEngine, RuleSet, simpleCountryMapper, simpleStateMapper } from '../lib/rules-engine';
 
 describe('RuleEngine validators', () => {
   const ruleSet: RuleSet = {
@@ -27,5 +27,15 @@ describe('RuleEngine validators', () => {
     const e = new RuleEngine(ruleSet);
     const res = await e.applyRow({ x: 'ok', cat: 'Alpha' } as any, '1');
     expect(res.normalizedRow.cat).toBe('A');
+  });
+});
+
+describe('simple mappers', () => {
+  it('simpleCountryMapper handles non-string input', () => {
+    expect(simpleCountryMapper(123 as any)).toBeNull();
+  });
+
+  it('simpleStateMapper handles non-string input', () => {
+    expect(simpleStateMapper(456 as any, 'US')).toBeNull();
   });
 });
