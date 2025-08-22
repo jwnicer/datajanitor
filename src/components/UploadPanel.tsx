@@ -20,34 +20,39 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
     e.preventDefault();
     e.stopPropagation();
     const f = e.dataTransfer.files?.[0];
-    if (f) {
-      setFile(f);
-    }
+    if (f) setFile(f);
   };
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
   };
-  
-  const begin = () => { if (!file) return toast.error('Choose a file'); setShowMapper(true); };
+
+  const begin = () => {
+    if (!file) return toast.error('Choose a file');
+    setShowMapper(true);
+  };
 
   async function doUpload() {
     if (!file) return;
     try {
-      setUploading(true); setProgress(15);
+      setUploading(true);
+      setProgress(15);
+
       const headers: Record<string,string> = {
         'x-file-name': file.name,
         'Content-Type': 'application/octet-stream',
       };
-      // No auth token needed now
-      if (mappingRef.current) headers['x-schema-mapping'] = btoa(unescape(encodeURIComponent(JSON.stringify(mappingRef.current))));
+      if (mappingRef.current) {
+        headers['x-schema-mapping'] = btoa(
+          unescape(encodeURIComponent(JSON.stringify(mappingRef.current)))
+        );
+      }
 
-      const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}` ,{
-        method: 'POST',
-        headers: headers,
-        body: file,
-      });
+      const res = await fetch(
+        `/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}`,
+        { method: 'POST', headers, body: file }
+      );
 
       setProgress(70);
       const raw = await res.text();
@@ -77,7 +82,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
       setUploading(false);
       setTimeout(() => setProgress(0), 800);
     }
-  };
+  }
 
   function onConfirm(schema: SchemaMapping){
     mappingRef.current = schema;
@@ -98,15 +103,31 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
         >
           <div className="text-sm text-muted-foreground">Drag & drop CSV/XLSX here</div>
           <div className="my-2">or</div>
-          <Input type="file" onChange={(e)=>setFile(e.target.files?.[0]||null)} accept=".csv,.tsv,.xlsx,.xls,.jsonl,.ndjson" />
-          {file && <div className="mt-2 text-xs text-muted-foreground">{file.name} • {(file.size/1024/1024).toFixed(2)} MB</div>}
+          <Input
+            type="file"
+            onChange={(e)=>setFile(e.target.files?.[0]||null)}
+            accept=".csv,.tsv,.xlsx,.xls,.jsonl,.ndjson"
+          />
+          {file && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {file.name} • {(file.size/1024/1024).toFixed(2)} MB
+            </div>
+          )}
           {uploading && <Progress className="mt-3" value={progress} />}
           <div className="mt-4 flex gap-2 justify-center">
             <Button onClick={begin} disabled={!file || uploading}>Upload</Button>
           </div>
         </div>
       </CardContent>
-       {file && <SchemaMapper file={file} open={showMapper} onClose={()=>setShowMapper(false)} onConfirm={onConfirm} ruleSetId={ruleSetId} />}
+      {file && (
+        <SchemaMapper
+          file={file}
+          open={showMapper}
+          onClose={()=>setShowMapper(false)}
+          onConfirm={onConfirm}
+          ruleSetId={ruleSetId}
+        />
+      )}
     </Card>
   );
 }
