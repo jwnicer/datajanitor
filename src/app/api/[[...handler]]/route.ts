@@ -8,6 +8,7 @@ import { upload } from '@/lib/upload';
 import { dedupeScan } from '@/lib/dedupe';
 import { cacheGet, cacheSet } from '@/lib/web-company-cache';
 import { schemaPropose } from '@/lib/schema-propose';
+import { Buffer } from 'node:buffer';
 
 // This is a catch-all route that proxies requests to the appropriate Cloud Function.
 // This is used for local development to simulate the Firebase Hosting rewrites.
@@ -23,9 +24,9 @@ const handlerMap: Record<string, Function> = {
     'issues/apply': issuesApply,
     'issues/reject': issuesReject,
     'issues/apply-safe': issuesApplySafe,
-    'rules': (req: Request) => {
-        if (req.method === 'POST') return rulesSave(req as any, {} as any);
-        return rulesGet(req as any, {} as any);
+    'rules': (req: any, res: any) => {
+        if (req.method === 'POST') return rulesSave(req, res);
+        return rulesGet(req, res);
     },
     'export/bq': exportBQ,
     'dedupe/scan': dedupeScan,
@@ -34,29 +35,52 @@ const handlerMap: Record<string, Function> = {
     'schema/propose': schemaPropose,
 };
 
+async function toExpressReq(req: Request) {
+    const url = new URL(req.url);
+    const headers: Record<string, string> = {};
+    req.headers.forEach((v, k) => { headers[k] = v; });
+    const rawBuffer = Buffer.from(await req.arrayBuffer());
+    let body: any = rawBuffer;
+    const ct = headers['content-type'] || '';
+    if (ct.includes('application/json')) {
+        try { body = JSON.parse(rawBuffer.toString('utf8')); } catch { body = {}; }
+    }
+    return { method: req.method, headers, query: Object.fromEntries(url.searchParams), rawBody: rawBuffer, body };
+}
+
+function createExpressRes() {
+    const headers: Record<string, string> = {};
+    let status = 200;
+    let body: any;
+    return {
+        setHeader(key: string, value: string) { headers[key] = value; },
+        getHeader(key: string) { return headers[key]; },
+        status(code: number) { status = code; return this; },
+        send(data: any) { body = data; return this; },
+        json(data: any) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(data); return this; },
+        end(data: any) { if (data !== undefined) body = data; return this; },
+        get statusCode() { return status; },
+        get headersObj() { return headers; },
+        get bodyData() { return body; },
+    };
+}
+
 const handle = async (req: Request, { params }: { params: { handler: string[] } }) => {
     const path = params.handler.join('/');
     const handleFn = handlerMap[path];
 
-    if (handleFn) {
-        // This is a simplified proxy. A more robust solution would handle response objects.
-        // For now, we assume the functions handle the request/response directly.
-        // This is okay for local dev but not a perfect simulation.
-        try {
-            const result = await handleFn(req);
-            if (result) {
-              return result;
-            }
-            // Functions might not return anything if they handle the response themselves (res.send, etc)
-            // which is common in Express-style Firebase Functions.
-            // We create a dummy response here.
-            return new Response(JSON.stringify({proxied: path}), { status: 200, headers: {'Content-Type': 'application/json'} });
-        } catch(e: any) {
-            return new Response(e.message, { status: 500 });
-        }
-    }
-    return new Response('Not Found', { status: 404 });
-}
+    if (!handleFn) return new Response('Not Found', { status: 404 });
 
+    try {
+        const expressReq = await toExpressReq(req);
+        const expressRes = createExpressRes();
+        await handleFn(expressReq, expressRes);
+        const headers = new Headers(expressRes.headersObj);
+        const body = expressRes.bodyData ?? '';
+        return new Response(body, { status: expressRes.statusCode, headers });
+    } catch (e: any) {
+        return new Response(String(e?.message || e), { status: 500 });
+    }
+}
 
 export { handle as GET, handle as POST };
