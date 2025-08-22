@@ -1,6 +1,7 @@
+
 'use client';
 import React from 'react';
-import { getFirestore, collection, query, where, orderBy, limit as qlimit, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, where, orderBy, limit as qlimit, onSnapshot, Query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,19 +21,30 @@ export function IssuesTable({ jobId }: { jobId: string }) {
 
   React.useEffect(() => {
     if (!jobId) return;
-    const base = collection(db, 'jobs', jobId, 'issues');
-    let qs = query(base);
-    if (filters.status) qs = query(qs, where('status','==', filters.status));
-    if (filters.source) qs = query(qs, where('source','==', filters.source));
-    if (filters.severity) qs = query(qs, where('severity','==', filters.severity));
-    // Real-time updates
-    const unsub = onSnapshot(query(qs, orderBy('createdAt','desc'), qlimit(500)), (snap) => {
+    
+    let q: Query = collection(db, 'jobs', jobId, 'issues');
+    
+    if (filters.status) {
+        q = query(q, where('status','==', filters.status));
+    }
+    if (filters.source) {
+        q = query(q, where('source','==', filters.source));
+    }
+    if (filters.severity) {
+        q = query(q, where('severity','==', filters.severity));
+    }
+    
+    q = query(q, orderBy('createdAt','desc'), qlimit(500));
+
+    const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setRows(data);
       setChecked({});
     }, (err) => {
         toast.error("Failed to load issues", { description: err.message });
+        console.error("Firestore snapshot error:", err);
     });
+
     return () => unsub();
   }, [db, jobId, filters.status, filters.source, filters.severity]);
 
@@ -132,3 +144,5 @@ export function IssuesTable({ jobId }: { jobId: string }) {
     </Card>
   );
 }
+
+    

@@ -37,25 +37,34 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export default function App() {
-  const [jobId, setJobId] = React.useState('job-' + Math.random().toString(36).slice(2, 8));
+  const [jobId, setJobId] = React.useState<string | null>(null);
   const [ruleSetId, setRuleSetId] = React.useState('default');
   const [tab, setTab] = React.useState<'upload' | 'issues' | 'rules' | 'export' | 'mapping'>('upload');
   const [statusText, setStatusText] = React.useState('');
   const [mapping, setMapping] = React.useState<any>(null);
+  
+  React.useEffect(() => {
+    // Initialize with a default job ID on mount
+    setJobId('job-' + Math.random().toString(36).slice(2, 8));
+  }, [])
+
 
   const runLLMBatch = async () => {
+    if (!jobId) return toast.error("Job ID is not set.");
     const res = await apiPost('/api/llm/batch', { jobId });
     toast.success('LLM batch complete', { description: JSON.stringify(res) });
   };
 
   const runAdhoc = async () => {
+    if (!jobId) return toast.error("Job ID is not set.");
     const promptValue = window.prompt('Ad-hoc prompt (e.g., "Find anomalies in email/phone")');
     if (!promptValue) return;
     const res = await apiPost('/api/llm/adhoc', { jobId, prompt: promptValue, limit: 20 });
-    toast.success('Ad-hoc review complete', { description: JSON.stringify(j) });
+    toast.success('Ad-hoc review complete', { description: JSON.stringify(res) });
   };
 
   const webEnrich = async () => {
+    if (!jobId) return toast.error("Job ID is not set.");
     const res = await apiPost('/api/web/company/bulk', { jobId, limit: 50 });
     toast.success('Web enrichment queued', { description: JSON.stringify(res) });
   };
@@ -68,7 +77,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Topbar
-        jobId={jobId}
+        jobId={jobId || ''}
         setJobId={setJobId}
         ruleSetId={ruleSetId}
         setRuleSetId={setRuleSetId}
@@ -83,7 +92,7 @@ export default function App() {
 
         <main className="col-span-12 lg:col-span-9 space-y-6">
           <AnimatePresence mode="wait">
-            {tab === 'upload' && (
+            {tab === 'upload' && jobId && (
               <motion.div key="upload" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={1} />
                 <UploadPanel jobId={jobId} ruleSetId={ruleSetId} onStatus={setStatusText} onComplete={onUploadComplete} />
@@ -105,7 +114,7 @@ export default function App() {
                 </Card>
               </motion.div>
             )}
-            {tab === 'issues' && (
+            {tab === 'issues' && jobId && (
               <motion.div key="issues" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={2} />
                 <IssuesTable jobId={jobId} />
@@ -117,7 +126,7 @@ export default function App() {
                 <RuleEditorPanel ruleSetId={ruleSetId} />
               </motion.div>
             )}
-            {tab === 'export' && (
+            {tab === 'export' && jobId && (
               <motion.div key="export" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Stepper current={3} />
                 <ExportPanel jobId={jobId} />
@@ -215,3 +224,5 @@ function HintCard({ title, text, icon }: { title: string; text: string; icon: Re
     </Card>
   );
 }
+
+    
