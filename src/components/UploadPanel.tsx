@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +16,6 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
   const mappingRef = React.useRef<SchemaMapping|null>(null);
   const dropzoneRef = React.useRef<HTMLDivElement>(null);
 
-
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -35,7 +33,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
   const begin = () => { if (!file) return toast.error('Choose a file'); setShowMapper(true); };
 
   async function doUpload() {
-    if (!file) return; 
+    if (!file) return;
     try {
       setUploading(true); setProgress(15);
       const headers: Record<string,string> = {
@@ -81,12 +79,11 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
     }
   };
 
-  function onConfirm(schema: SchemaMapping){ 
-    mappingRef.current = schema; 
-    setShowMapper(false); 
-    doUpload(); 
+  function onConfirm(schema: SchemaMapping){
+    mappingRef.current = schema;
+    setShowMapper(false);
+    doUpload();
   }
-
 
   return (
     <Card>
