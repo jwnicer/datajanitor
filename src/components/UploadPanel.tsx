@@ -20,8 +20,16 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     const f = e.dataTransfer.files?.[0];
-    if (f) setFile(f);
+    if (f) {
+      setFile(f);
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
   
   const begin = () => { if (!file) return toast.error('Choose a file'); setShowMapper(true); };
@@ -34,6 +42,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
         'x-file-name': file.name,
         'Content-Type': 'application/octet-stream',
       };
+      // No auth token needed now
       if (mappingRef.current) headers['x-schema-mapping'] = btoa(unescape(encodeURIComponent(JSON.stringify(mappingRef.current))));
 
       const res = await fetch(`/api/upload?jobId=${encodeURIComponent(jobId)}&ruleSetId=${encodeURIComponent(ruleSetId)}` ,{
@@ -57,7 +66,7 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
       toast.success('Upload complete. Starting processing...');
 
       try {
-        await apiPost('/api/process/start', { jobId, useLLM: true });
+        await apiPost('/api/pipeline-workers/start', { jobId, useLLM: true });
         toast.success('Processing started');
       } catch (e: any) {
         toast.error('Failed to start processing', { description: e.message });
@@ -86,7 +95,8 @@ export function UploadPanel({ jobId, ruleSetId, onStatus, onComplete }:{ jobId:s
         <div
           ref={dropzoneRef}
           onDrop={onDrop}
-          onDragOver={(e)=>e.preventDefault()}
+          onDragOver={onDragOver}
+          onDragEnter={onDragOver}
           className="rounded-2xl border border-dashed p-8 text-center bg-muted/30"
         >
           <div className="text-sm text-muted-foreground">Drag & drop CSV/XLSX here</div>
