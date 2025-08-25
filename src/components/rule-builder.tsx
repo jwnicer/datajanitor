@@ -94,7 +94,7 @@ const LIBRARY: Array<{key:string; title:string; desc:string; example?:string; ma
   { key: "cash_runway", title:"Cash‑Flow / Runway (enum)", desc:"Positive / Break‑even / Negative.", make: () => ({ ruleId:"cash_runway", type:"enum", appliesTo:"cash_runway", strategy:"auto_fix", enum:["Positive","Break-even","Negative"], synonyms:{positive:"Positive","break even":"Break-even",breakeven:"Break-even","break-even":"Break-even",negative:"Negative"} }) }
 ];
 
-function RulesBuilder() {
+export default function RulesBuilder() {
   const [ruleSetId, setRuleSetId] = useState("default");
   const [name, setName] = useState("default");
   const [version, setVersion] = useState(1);
