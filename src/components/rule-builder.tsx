@@ -1,6 +1,8 @@
 
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getApps, initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc } from "firebase/firestore";
 
 // ================================================
 // Rule Set Builder — Pro UI (v2)
@@ -94,6 +96,23 @@ const LIBRARY: Array<{key:string; title:string; desc:string; example?:string; ma
   { key: "cash_runway", title:"Cash‑Flow / Runway (enum)", desc:"Positive / Break‑even / Negative.", make: () => ({ ruleId:"cash_runway", type:"enum", appliesTo:"cash_runway", strategy:"auto_fix", enum:["Positive","Break-even","Negative"], synonyms:{positive:"Positive","break even":"Break-even",breakeven:"Break-even","break-even":"Break-even",negative:"Negative"} }) }
 ];
 
+// Firebase config, lazy initialization
+let db: any;
+function getDb() {
+  if (db) return db;
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  };
+  if (getApps().length === 0 && firebaseConfig.projectId) {
+    initializeApp(firebaseConfig);
+  }
+  db = getFirestore();
+  return db;
+}
+
+
 export default function RulesBuilder() {
   const [ruleSetId, setRuleSetId] = useState("default");
   const [name, setName] = useState("default");
@@ -129,10 +148,9 @@ export default function RulesBuilder() {
 
   async function saveToFirestore(){
     try{
-      // @ts-ignore compat
-      const db = window.firebase?.firestore?.();
-      if(!db) throw new Error("Open Settings and sign in first.");
-      await db.collection("ruleSets").doc(ruleSetId||name||"default").set(currentJSON(), { merge: true });
+      const db = getDb();
+      if(!db) throw new Error("Firestore not configured. Check env vars.");
+      await setDoc(doc(db, "ruleSets", ruleSetId||name||"default"), currentJSON(), { merge: true });
       alert("Saved rule set: "+(ruleSetId||name));
     }catch(e:any){ alert(e.message||String(e)); }
   }
